@@ -1,0 +1,122 @@
+/* Supporting labels stay readable on entry-level phones. */
+.logo,
+.hero h1,
+.widget-price > strong,
+.tools-heading h2,
+.page-heading h1,
+.large-price,
+.outcome > h2,
+.margin-number {
+  letter-spacing: normal;
+}
+.status,
+.demo-label,
+.widget-head .demo-label {
+  padding: 8px 10px;
+}
+.week {
+  margin-inline: 16px;
+  gap: 2px;
+}
+.day {
+  padding: 8px;
+  min-width: 0;
+}
+.period button {
+  padding: 8px 12px;
+}
+.price-summary > h2 {
+  font-size: 16px;
+}
+.feature-detail { visibility: hidden; }
+.feature-item.active .feature-detail { visibility: visible; }
+.status.up, .status.danger { color: #b42318; }
+.large-price, .margin-number { overflow-wrap: anywhere; }
+.text-button { display: inline-flex; align-items: center; }
+.form-help,
+.recent,
+.recent button,
+.widget-head p,
+.demo-label,
+.widget-head .demo-label,
+.widget-price > p,
+.status,
+.day,
+.widget-bottom span,
+.widget-note,
+.source-strip,
+.source-strip > span,
+.source-strip > div,
+.source-strip small,
+.feature-preview p,
+.feature-preview .mini-title,
+.feature-detail a,
+.period button,
+.ingredient label,
+.footer p,
+.footer > div > span,
+.footer small,
+.mobile-nav a,
+.chat-heading .small {
+  font-size: 12px;
+}
+.widget-head {
+  flex-wrap: wrap;
+}
+.widget-head .demo-label {
+  margin-left: 56px;
+}
+.widget-head h2 {
+  font-size: 15px;
+}
+.widget-bottom {
+  gap: 24px;
+}
+.source-strip > div {
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.source-strip small {
+  max-width: 145px;
+}
+.footer a:not(.logo),
+.footer .text-button {
+  min-height: 44px;
+}
+.source-strip {
+  line-height: 1.7;
+}
+@media (max-width: 640px) {
+  .week {
+    margin-inline: 4px;
+  }
+  .widget-head .demo-label {
+    margin-left: auto;
+  }
+  .widget-head h2 {
+    font-size: 14px;
+  }
+  .widget-head {
+    gap: 8px;
+  }
+  .widget-bottom {
+    gap: 20px;
+  }
+  .source-strip small {
+    max-width: none;
+  }
+  .source-strip > div {
+    gap: 8px 16px;
+  }
+  .source-strip > div > span {
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+  }
+  .mobile-nav a {
+    font-size: 12px;
+  }
+  .widget-head .demo-label {
+    font-size: 12px;
+  }
+}

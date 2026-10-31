@@ -1,0 +1,21 @@
+:root {
+  --ink: #172b1b;
+  --primary: #2e7a1f;
+  --primary-hover: #245f19;
+  --primary-soft: #eaf4e7;
+  --slate: #53665a;
+  --mist: #a2b99b;
+  --cloud: #f7faf6;
+  --paper: #fff;
+  --pebble: #f1f5ef;
+  --line: #d9e4d7;
+  --good: #2e7a1f;
+  --bad: #b42318;
+  --warn: #9a5b08;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  font-family: Manrope, system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  font-synthesis: none;
+  color-scheme: light;
+}

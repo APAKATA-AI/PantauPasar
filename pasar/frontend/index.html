@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="color-scheme" content="light" />
+    <title>PantauPasar · Belanja stok dengan perhitungan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/variables.css" />
+    <link rel="stylesheet" href="css/reset.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/responsive.css" />
+    <link rel="stylesheet" href="css/market-atmosphere.css" />
+    <script defer src="js/config.js"></script>
+    <script defer src="js/services/api.js"></script>
+    <script defer src="js/main.js"></script>
+    <script defer src="js/modules/market-atmosphere.js"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Lewati ke isi</a>
+    <header class="header">
+      <div class="header-inner">
+        <a class="logo" href="#harga" aria-label="PantauPasar beranda"
+          >Pantau<span>Pasar</span><span class="logo-period">.</span></a
+        >
+        <nav class="nav" aria-label="Menu utama"></nav>
+        <button class="button dark header-cta" id="header-search">
+          Masuk</span>
+        </button>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      <section id="harga" class="view">
+        <div class="hero-stage">
+        <div class="hero container">
+          <div class="market-scene" aria-hidden="true">
+            <svg viewBox="0 0 1440 880" preserveAspectRatio="xMidYMax slice" focusable="false">
+              <defs>
+                <g id="market-stall">
+                  <path d="M0 110 44 20h242l44 90Z" />
+                  <path d="M0 110q16 27 33 0 16 27 33 0 16 27 33 0 16 27 33 0 16 27 33 0 16 27 33 0 16 27 33 0 16 27 33 0 16 27 33 0 16 27 33 0" />
+                  <path d="M22 120h12v218H22zm274 0h12v218h-12zM24 234h284v96H24z" />
+                  <path d="m42 226 12-34h52l14 34zm80 0 8-44h58l8 44zm84 0 8-28h62l13 28z" />
+                </g>
+                <g id="market-walker">
+                  <ellipse cx="2" cy="3" rx="27" ry="4" class="person-shadow" />
+                  <g class="walker-body">
+                    <g class="walker-leg leg-back"><path d="M-14-80h13l-1 41-12 1Z"/><g class="walker-shin"><path d="m-14-42 12 1-3 34-8 1Z"/><path d="M-14-10h9l10 6q3 4-2 4h-18Z"/></g></g>
+                    <g class="walker-arm arm-back"><path d="M-12-128q-7 0-9 9l-4 32q-1 8 6 10l18 13 4-6-17-16 7-29Z"/></g>
+                    <path d="M-12-132q11-6 23 1l8 16-2 41q-14 7-33 0l-2-34Z"/>
+                    <path d="M-2-143h11l1 14-12 2Z"/>
+                    <path d="M-8-153q-2-16 12-18 14-1 16 12l-1 7 5 7-6 2-2 8q-6 5-17-2Z"/>
+                    <path d="M-10-155q-3-17 12-20 15-2 19 12l-11-2-5 11-5 4-1 10-6-2Z"/>
+                    <g class="walker-leg leg-front"><path d="M0-80h14l-1 41-12 1Z"/><g class="walker-shin"><path d="m1-42 12 1-3 34-8 1Z"/><path d="M1-10h10l11 6q3 4-3 4H0Z"/></g></g>
+                    <g class="walker-arm arm-front"><path d="M8-128q8-1 10 9l1 31-4 26q-1 5-6 3l-1-6 1-25-7-26q-2-9 6-12Z"/><g class="shopping-bag"><path class="bag-handle" d="M4-48v-8a7 7 0 0 1 14 0v8"/><path d="M-1-49h25l3 28q0 5-5 5H0q-5 0-4-5Z"/></g></g>
+                  </g>
+                </g>
+                <g id="market-shopper">
+                  <ellipse cx="0" cy="3" rx="27" ry="4" class="person-shadow" />
+                  <g class="walker-body shopper-body">
+                    <g class="walker-leg leg-back"><path d="M-13-80h12l-1 41-12 1Z"/><g class="walker-shin"><path d="m-14-42 12 1-3 34-8 1Z"/><path d="M-14-9h9l10 5q3 4-2 4h-18Z"/></g></g>
+                    <g class="walker-arm arm-back"><path d="M-12-125q-7 1-9 11l-4 27q-1 6 5 9l18 15 5-6-16-18 7-25Z"/></g>
+                    <g class="walker-leg leg-front"><path d="M0-80h13v41H1Z"/><g class="walker-shin"><path d="m1-42 12 1-3 34-8 1Z"/><path d="M1-9h10l11 5q3 4-3 4H0Z"/></g></g>
+                    <path d="M-14-132q15-6 27 2l5 27 8 42q-25 8-49 0l6-41Z"/>
+                    <path d="M-17-147q-2-26 17-28 17 0 20 18l-1 9 5 7-7 3 3 13-19 10-22-10Z"/>
+                    <g class="walker-arm arm-front"><path d="M9-126q8-1 10 9l2 27-7 27q-1 5-6 2l-1-5 3-25-7-23q-2-10 6-12Z"/><g class="shopping-bag"><path class="bag-handle" d="M2-47v-8a8 8 0 0 1 16 0v8"/><path d="M-4-48h28l4 27q1 6-5 6H-2q-6 0-5-6Z"/></g></g>
+                  </g>
+                </g>
+              </defs>
+              <g class="market-stalls">
+                <use href="#market-stall" transform="translate(-110 450) scale(1.2)" />
+                <use href="#market-stall" transform="translate(420 505) scale(.82)" />
+                <use href="#market-stall" transform="translate(1020 455) scale(1.15)" />
+                <path d="M0 845Q720 805 1440 845v35H0Z" />
+              </g>
+              <g transform="translate(110 806)"><g class="market-person person-one"><use href="#market-walker" /></g></g>
+              <g transform="translate(800 820)"><g class="market-person person-two"><use href="#market-shopper" /></g></g>
+              <g transform="translate(1150 765) scale(.82)"><g class="market-person person-three"><use href="#market-walker" /></g></g>
+              <g transform="translate(510 772) scale(.8)"><g class="market-person person-four"><use href="#market-shopper" /></g></g>
+            </svg>
+          </div>
+          <div class="hero-copy">
+            <h1>Cek harga pasar<br />sebelum <span>belanja stok.</span></h1>
+            <p class="intro">
+              Pantau harga pasar, hitung biaya, dan rencanakan keuntungan.
+            </p>
+            <form id="market-form" class="search-form">
+              <div class="location-fields">
+                <label
+                  >Provinsi<select id="province">
+                    <option>Jawa Timur</option>
+                    <option>Jawa Barat</option>
+                    <option>DKI Jakarta</option>
+                    <option>Jawa Tengah</option>
+                  </select></label
+                ><label>Kota / kabupaten<select id="city"></select></label>
+              </div>
+              <label class="product-label"
+                >Produk yang ingin dicek
+                <div class="search-input">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="10.5" cy="10.5" r="6.5" />
+                    <path d="m16 16 5 5" /></svg
+                  ><input
+                    id="product"
+                    value="Cabai rawit merah"
+                    required
+                    autocomplete="off"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-controls="product-suggestions"
+                    aria-expanded="false"
+                  />
+                  <div
+                    id="product-suggestions"
+                    class="product-suggestions"
+                    role="listbox"
+                    aria-label="Saran produk"
+                    hidden
+                  ></div>
+                </div></label
+              ><button class="button primary" id="search-button" type="submit">
+                Cek harga
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14m-6-6 6 6-6 6" />
+                </svg>
+              </button>
+              <p class="form-help">
+                Ketik nama produk; pilih saran atau cari dengan kata umum.
+              </p>
+            </form>
+            <div class="recent">
+              <span>Pencarian terakhir</span>
+              <div id="recent-searches">
+                Belum ada pencarian. Mulai dari produk di atas.
+              </div>
+            </div>
+          </div>
+          <div class="hero-preview">
+            <article class="price-widget">
+              <div class="widget-head">
+                <div class="produce-mark" aria-hidden="true">
+                  <svg viewBox="0 0 70 70">
+                    <path
+                      d="M18 28h34l-4 27H22l-4-27Zm4 0 5-12h16l5 12M28 28v27m14-27v27"
+                      fill="none"
+                      stroke="#2e7a1f"
+                      stroke-width="3"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h2 id="widget-product">Belum ada pencarian</h2>
+                  <p id="widget-location">Pilih produk dan wilayah</p>
+                </div>
+                <span class="demo-label">Belum ada data</span>
+              </div>
+              <div class="widget-price">
+                <p>Harga rata-rata / <span id="widget-unit">—</span></p>
+                <strong id="widget-value">—</strong
+                ><span class="status" id="widget-trend">Belum tersedia</span>
+              </div>
+              <div class="week" id="week-strip">Riwayat harga tampil setelah pencarian.</div>
+              <div class="widget-bottom">
+                <div>
+                  <span>Terendah</span
+                  ><strong id="widget-low">—</strong>
+                </div>
+                <div>
+                  <span>Tertinggi</span
+                  ><strong id="widget-high">—</strong>
+                </div>
+                <div class="mini-chart">
+                  <span>Tren 7 hari</span>
+                  <svg
+                    id="widget-trend-chart"
+                    viewBox="0 0 92 36"
+                    role="img"
+                    aria-label="Grafik tren belum tersedia"
+                    preserveAspectRatio="none"
+                  >
+                    <path class="trend-area"></path>
+                    <path class="trend-line"></path>
+                    <circle class="trend-point" r="2.5"></circle>
+                  </svg>
+                </div>
+              </div>
+              <div class="widget-note">
+                Harga pasar ditampilkan bersama sumber dan tanggalnya.
+              </div>
+            </article>
+          </div>
+        </div>
+        </div>
+        <div class="source-strip container">
+          <span>Sumber data</span>
+          <div id="source-strip-names">
+            <span>Bank Indonesia (PIHPS)</span>
+          </div>
+          <small>Pembaruan mengikuti data yang tersedia.</small>
+        </div>
+        <section class="tools-section container" aria-labelledby="tools-title">
+          <div class="tools-heading">
+            <h2 id="tools-title">Dari harga pasar,<br />ke keputusan usaha.</h2>
+          </div>
+          <div class="tools-layout">
+            <div id="feature-list" class="feature-list"></div>
+            <div class="feature-preview" id="feature-preview"></div>
+          </div>
+        </section>
+      </section>
+      <section id="hasil" class="view container page" hidden>
+        <button class="text-button back" id="back-search">
+          ← Ubah pencarian
+        </button>
+        <div class="page-heading">
+          <div>
+            <h1 id="result-title"></h1>
+            <p id="updated-at"></p>
+          </div>
+          <span class="demo-label" id="result-mode">Data contoh</span>
+        </div>
+        <div id="market-message" class="notice" role="status"></div>
+        <div class="result-grid">
+          <article class="price-summary">
+            <p>Harga rata-rata</p>
+            <div class="large-price" id="result-price" aria-live="polite"></div>
+            <span class="status up" id="result-trend"></span>
+            <p id="result-change"></p>
+            <div class="price-range">
+              <div><span>Terendah</span><strong id="result-low"></strong></div>
+              <div>
+                <span>Tertinggi</span><strong id="result-high"></strong>
+              </div>
+            </div>
+            <h2>Seberapa yakin datanya?</h2>
+            <div class="confidence" id="confidence"></div>
+            <p class="small" id="confidence-copy"></p>
+            <button class="button primary" id="use-for-profit">
+              Hitung untung dari harga ini
+            </button>
+          </article>
+          <article class="panel chart-panel">
+            <div class="panel-heading">
+              <h2>Pergerakan harga</h2>
+              <div class="period" id="period">
+                <button data-days="7" aria-pressed="true">7 hari</button
+                ><button data-days="14" aria-pressed="false">14 hari</button
+                ><button data-days="30" aria-pressed="false">30 hari</button>
+              </div>
+            </div>
+            <p class="small" id="chart-note"></p>
+            <div class="chart-wrap">
+              <canvas
+                id="market-chart"
+                role="img"
+                aria-label="Grafik harga harian"
+              ></canvas>
+            </div>
+            <p class="small" id="chart-summary"></p>
+          </article>
+          <article class="panel">
+            <h2>Bandingkan wilayah sekitar</h2>
+            <p class="small">Urutan harga rata-rata dari yang terendah.</p>
+            <div id="region-comparison"></div>
+          </article>
+          <article class="panel">
+            <h2>Dari mana angka ini?</h2>
+            <div id="result-sources"></div>
+            <a class="text-button" id="share-price" href="https://wa.me/" target="_blank" rel="noopener noreferrer">
+              Bagikan lewat WhatsApp ↗
+            </a>
+          </article>
+        </div>
+      </section>
+      <section id="simulasi" class="view container page" hidden>
+        <div class="page-heading">
+          <div>
+            <h1>Kalau harga bahan naik?</h1>
+            <p>Coba beberapa kemungkinan sebelum mengubah harga jual.</p>
+          </div>
+        </div>
+        <div class="module-grid">
+          <form class="panel input-panel" id="simulation-form">
+            <h2>Atur skenarionya</h2>
+            <p class="small">
+              Dasar biaya mengikuti hitungan untungmu. Nilai awal adalah contoh.
+            </p>
+            <label
+              >Kenaikan bahan baku <output id="raw-output">10%</output
+              ><input
+                type="range"
+                id="raw-rise"
+                min="0"
+                max="100"
+                value="10" /></label
+            ><label
+              >Kenaikan operasional <output id="ops-output">5%</output
+              ><input
+                type="range"
+                id="ops-rise"
+                min="0"
+                max="100"
+                value="5" /></label
+            ><label
+              >Harga jual per produk (Rp)<input
+                id="sim-sale"
+                type="number"
+                min="0"
+                step="100"
+                value="15000"
+                required
+            /></label>
+            <p class="small">Biaya operasional dasar / produksi</p>
+            <label class="sr-only" for="operating"
+              >Biaya operasional dasar</label
+            ><input
+              id="operating"
+              type="number"
+              min="0"
+              value="20000"
+              required
+            />
+            <div class="presets">
+              <span>Coba skenario</span
+              ><button class="text-button" type="button" data-preset="10">
+                Bahan naik 10%</button
+              ><button class="text-button" type="button" data-preset="25">
+                Bahan naik 25%</button
+              ><button class="text-button" type="button" data-preset="0">
+                Kembali ke awal
+              </button>
+            </div>
+          </form>
+          <article class="panel outcome" aria-live="polite">
+            <span class="status" id="sim-status"></span>
+            <h2 id="sim-sentence"></h2>
+            <p class="small">Per produk, setelah bahan baku dan operasional.</p>
+            <div class="profit-bar">
+              <span>Sebelum</span><strong id="before-value"></strong>
+              <div><i id="before-bar"></i></div>
+            </div>
+            <div class="profit-bar">
+              <span>Sesudah</span><strong id="after-value"></strong>
+              <div><i id="after-bar"></i></div>
+            </div>
+            <p class="calculation-note" id="sim-note"></p>
+          </article>
+        </div>
+      </section>
+      <section id="untung" class="view container page" hidden>
+        <div class="page-heading">
+          <div>
+            <h1>Setiap produk, jelas untungnya.</h1>
+            <p>Masukkan biaya satu kali produksi. Kami bantu hitung sisanya.</p>
+          </div>
+        </div>
+        <div class="module-grid">
+          <form class="panel input-panel" id="profit-form">
+            <div class="panel-heading">
+              <h2>Bahan baku</h2>
+              <button type="button" class="text-button" id="add-ingredient">
+                + Tambah bahan
+              </button>
+            </div>
+            <p class="small">
+              Biaya adalah total pemakaian bahan untuk satu produksi.
+            </p>
+            <div id="ingredients"></div>
+            <button class="text-button" type="button" id="use-market">
+              Pakai harga pasar terakhir
+            </button>
+            <div class="form-divider"></div>
+            <div class="location-fields">
+              <label
+                >Jumlah produk<input
+                  type="number"
+                  id="quantity"
+                  value="20"
+                  min="1"
+                  max="100000"
+                  required /></label
+              ><label
+                >Harga jual / produk (Rp)<input
+                  type="number"
+                  id="sale-price"
+                  value="15000"
+                  min="0"
+                  required
+              /></label>
+            </div>
+            <p class="small">
+              Belum termasuk biaya operasional. Masukkan sebagai bahan tambahan
+              bila perlu.
+            </p>
+          </form>
+          <article class="panel outcome" aria-live="polite">
+            <p>Margin keuntungan</p>
+            <div class="margin-number" id="profit-margin"></div>
+            <span class="status" id="profit-status"></span>
+            <dl class="profit-details" id="profit-details"></dl>
+            <button class="button primary" id="go-simulate">
+              Coba kalau harga naik
+            </button>
+          </article>
+        </div>
+      </section>
+      <section id="saran" class="view container page" hidden>
+        <div class="page-heading">
+          <div>
+            <h1>Pikirkan langkah berikutnya.</h1>
+            <p>Tanya soal stok, harga jual, atau cara menjaga keuntungan.</p>
+          </div>
+        </div>
+        <div class="module-grid advisor-grid">
+          <aside class="advisor-context">
+            <h2>Konteks usahamu</h2>
+            <p id="advisor-context"></p>
+            <div class="form-divider"></div>
+            <h3>Mulai dari pertanyaan ini</h3>
+            <div class="quick-questions">
+              <button
+                class="text-button"
+                data-question="Apakah sebaiknya saya menambah stok?"
+              >
+                Apakah sebaiknya menambah stok?</button
+              ><button
+                class="text-button"
+                data-question="Bagaimana menjaga untung saat harga naik?"
+              >
+                Bagaimana menjaga untung saat harga naik?</button
+              ><button
+                class="text-button"
+                data-question="Perlukah saya menaikkan harga jual?"
+              >
+                Perlukah menaikkan harga jual?
+              </button>
+            </div>
+            <p class="small">
+              Saran membantu pertimbangan. Selalu periksa harga pemasok dan
+              kondisi usahamu.
+            </p>
+          </aside>
+          <article class="panel chat-panel">
+            <div class="chat-heading">
+              <span class="chat-symbol" aria-hidden="true">?</span>
+              <div>
+                <h2>Teman hitung sebelum belanja</h2>
+                <p class="small">Jawaban singkat, langkah yang bisa dicoba.</p>
+              </div>
+            </div>
+            <div id="conversation" class="conversation" aria-live="polite">
+              <div class="chat-empty">
+                <h3>Apa yang sedang kamu pertimbangkan?</h3>
+                <p>
+                  Ketik pertanyaan atau pilih contoh di sebelah. Jawaban lokal
+                  memakai aturan perhitungan, bukan model AI.
+                </p>
+              </div>
+            </div>
+            <form id="advisor-form" class="chat-form">
+              <label class="sr-only" for="question">Pertanyaanmu</label
+              ><textarea
+                id="question"
+                placeholder="Contoh: bahan naik, harga jual perlu berubah?"
+                rows="2"
+                required
+                maxlength="1500"
+              ></textarea
+              ><button class="button primary" id="ask-button">
+                Kirim pertanyaan
+              </button>
+            </form>
+          </article>
+        </div>
+      </section>
+    </main>
+    <footer class="container footer">
+      <div>
+        <a class="logo" href="#harga">Pantau<span>Pasar</span>.</a>
+      </div>
+      <div>
+        <span>UNTUK USAHAMU</span><a href="#harga">Cari harga pasar</a
+        ><a href="#untung">Hitung keuntungan</a>
+      </div>
+      <div>
+        <span>TENTANG DATA</span
+        ><button class="text-button" id="about-data">
+          Sumber & batasan data</button
+        ><small>Observasi PIHPS tersimpan di PostgreSQL.</small>
+      </div>
+    </footer>
+    <nav class="mobile-nav" aria-label="Menu HP"></nav>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <dialog id="data-dialog">
+      <form method="dialog">
+        <div class="panel-heading">
+          <h2>Jelas asal angkanya.</h2>
+          <button class="icon-button" aria-label="Tutup">×</button>
+        </div>
+        <p>
+          Ringkasan harga berasal dari observasi Pasar Tradisional PIHPS Bank
+          Indonesia yang disimpan di PostgreSQL. Cakupan mengikuti wilayah dan
+          komoditas yang tersedia di PIHPS; pencarian tanpa data tidak memakai
+          harga pengganti.
+        </p>
+        <p>
+          Label beras medium dipetakan ke Beras Kualitas Medium I. Satuan dan
+          waktu mengikuti katalog serta observasi PIHPS. Sumber tidak
+          menyediakan skor keyakinan. Angka pada kartu ilustrasi fitur hanya
+          contoh perhitungan, bukan harga pasar.
+        </p>
+        <p>
+          Simulasi menghitung dampak dari inputmu; saran lokal memakai aturan
+          sederhana dan tidak memprediksi harga.
+        </p>
+        <button class="button dark">Mengerti</button>
+      </form>
+    </dialog>
+  </body>
+</html>
