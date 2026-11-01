@@ -1,0 +1,77 @@
+/* Warm, quiet market workspace: neutral surfaces and one green action. */
+:root { font-variant-numeric: tabular-nums; }
+p { max-width: 75ch; }
+.hero h1 { font-size: clamp(36px,4vw,48px); line-height:1.12; letter-spacing:-.02em; }
+.hero h1 span { color:inherit; }
+.market-scene, .hero-preview, .source-strip, .tools-section { display:none; }
+.hero { display:block; max-width:960px; padding-block:48px; min-height:0; }
+.hero-copy { max-width:760px; margin:auto; }
+.hero-stage { background:var(--cloud); min-height:0; }
+.hero .search-form { max-width:none; }
+.compare-options { grid-column:1/-1; padding-block:8px; }
+.compare-options summary,.history-details summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-weight:600; }
+.compare-options label { margin-block:8px; }
+.history-details { margin-top:24px; border-top:1px solid var(--line); }
+.history-scroll { overflow:auto; max-height:340px; }
+table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+caption { text-align:left; color:var(--slate); padding-block:12px; font-size:13px; }
+th,td { text-align:left; padding:12px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+th { font-size:13px; } td { font-size:14px; }
+button:active:not(:disabled),.button:active { transform:scale(.97); }
+button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible { outline:2px solid var(--primary); outline-offset:3px; }
+button,a,summary { -webkit-tap-highlight-color:transparent; }
+.button,.text-button,.period button { min-height:44px; }
+.price-summary { padding:24px; }
+.result-grid { align-items:start; }
+.price-summary > h2,.confidence { display:none; }
+#confidence-copy { margin-block:16px; }
+.view-enter { animation:none!important; }
+.footer .logo { display:none; }
+@media(max-width:640px) { .hero {padding:32px 16px;} .hero h1{font-size:36px;} .price-summary{padding:16px 0;} .panel{padding:16px;} .compare-options input{width:100%;} }
+@media(prefers-reduced-motion:reduce) { *{scroll-behavior:auto!important;transition:none!important;} }
+.footer h3,.footer h4,.footer strong { text-transform:none; letter-spacing:normal; }
+button,a,input,select,summary { transition-duration:140ms; }
+.market-person { animation:none!important; }
+/* Reading order follows each task: input, result, then supporting context. */
+.page { padding-top:40px; padding-bottom:56px; }
+.page-heading { margin-bottom:32px; }
+.page-heading h1 { font-size:clamp(30px,3vw,40px);line-height:1.2;letter-spacing:-.02em; }
+.page-heading p { font-size:15px;line-height:1.65;max-width:60ch; }
+.module-grid { gap:32px;align-items:start; }
+.advisor-grid { grid-template-columns:minmax(0,1fr) 280px;max-width:1100px; }
+.advisor-grid .chat-panel {grid-column:1;grid-row:1;}
+.advisor-grid .advisor-context {grid-column:2;grid-row:1;padding:24px 0;}
+.advisor-context h2 {font-size:18px;}
+.advisor-context p {font-size:14px;line-height:1.7;}
+.chat-panel {padding:24px;box-shadow:none;border-radius:16px;}
+.chat-heading h2 {font-size:20px;line-height:1.4;}
+.chat-heading p {font-size:13px;line-height:1.65;}
+.chat-empty {padding:32px 0;}
+.chat-empty h3 {font-size:22px;}
+.chat-empty p {font-size:14px;max-width:52ch;}
+.conversation {min-height:240px;max-height:520px;overscroll-behavior:contain;scrollbar-gutter:stable;}
+.chat-form label {font-size:14px;font-weight:600;}
+.chat-form textarea {min-height:112px;padding:16px;line-height:1.6;border-radius:8px;}
+.chat-form .small {font-size:12px;line-height:1.7;margin:0;}
+.chat-answer,.chat-question {font-size:15px;line-height:1.75;}
+.chat-answer h3 {font-size:17px;letter-spacing:normal;}
+.chat-question {margin-left:24px;padding:16px;background:var(--pebble);border-radius:8px;}
+.answer-error {padding:16px;background:var(--pebble);border-radius:8px;}
+.answer-error button {display:block;margin-top:8px;}
+.quick-questions {gap:8px;}
+.quick-questions button {text-align:left;line-height:1.5;min-height:44px;padding:8px 0;color:var(--ink);}
+.ingredient {gap:12px;}
+.ingredient label {font-size:13px;}
+.ingredient .icon-button {width:44px;}
+.input-panel,.outcome {padding:24px;}
+.margin-number {font-size:clamp(40px,5vw,64px);letter-spacing:-.02em;overflow-wrap:anywhere;}
+.profit-details > div {font-size:14px;flex-wrap:wrap;}
+.footer {display:flex;gap:24px;flex-wrap:wrap;padding-block:24px;}
+.footer > div:first-child {display:none;}
+.footer > div {flex:1;min-width:200px;}
+.footer > div > span {font-size:13px;text-transform:none;letter-spacing:normal;font-weight:600;}
+.footer small {font-size:12px;max-width:60ch;}
+textarea:focus-visible {outline:2px solid var(--primary);outline-offset:3px;}
+[hidden] {display:none!important;}
+@media(max-width:900px){.advisor-grid{grid-template-columns:1fr;gap:24px;}.advisor-grid .chat-panel{grid-column:1;grid-row:1;}.advisor-grid .advisor-context{grid-column:1;grid-row:2;padding:0;}.advisor-context .form-divider{margin-block:16px;}.quick-questions{flex-direction:row;flex-wrap:wrap;gap:8px 24px;}}
+@media(max-width:640px){.page{padding-top:24px;padding-bottom:32px;}.page-heading{margin-bottom:24px;}.page-heading h1{font-size:30px;}.module-grid{grid-template-columns:1fr;gap:24px;}.chat-panel,.input-panel,.outcome{padding:16px;}.chat-form button{width:100%;}.chat-question{margin-left:16px;}.conversation{min-height:160px;max-height:440px;}.ingredient{grid-template-columns:minmax(0,1fr) 110px 44px;gap:8px;}.ingredient input{min-width:0;width:100%;}.mobile-nav a{min-width:0;font-size:11px;line-height:1.3;padding-inline:4px;}.footer{gap:16px;}.footer>div{min-width:0;width:100%;flex-basis:100%;}.chat-empty{padding:16px 0;}}

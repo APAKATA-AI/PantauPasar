@@ -1,4 +1,4 @@
-import { askGemini } from "../integrations/gemini-advisor.js";
+import { askVleee } from "../integrations/vleee-advisor.js";
 import { HttpError } from "../middleware/http-error.js";
 import { requiredText } from "../middleware/validate.js";
 
@@ -13,6 +13,6 @@ export const advisorController = {
     };
     if (JSON.stringify(context).length > 8000)
       throw new HttpError(400, "INVALID_INPUT", "Konteks konsultasi terlalu besar.");
-    res.json(await askGemini({ question, context }));
+    res.json(await askVleee({ question, context }));
   },
 };

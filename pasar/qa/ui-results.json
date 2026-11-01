@@ -1,0 +1,34 @@
+{
+  "checked_at": "2026-11-01T04:07:45.909Z",
+  "checks": [
+    {
+      "width": 390,
+      "theme": "light",
+      "overflow": false,
+      "success": true,
+      "unknown_location_error": "Wilayah belum dikenali oleh sumber PIHPS. Periksa nama provinsi dan kota/kabupaten."
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "overflow": false,
+      "success": true,
+      "unknown_location_error": "Wilayah belum dikenali oleh sumber PIHPS. Periksa nama provinsi dan kota/kabupaten."
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "overflow": false,
+      "success": true,
+      "unknown_location_error": "Wilayah belum dikenali oleh sumber PIHPS. Periksa nama provinsi dan kota/kabupaten."
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "overflow": false,
+      "success": true,
+      "unknown_location_error": "Wilayah belum dikenali oleh sumber PIHPS. Periksa nama provinsi dan kota/kabupaten."
+    }
+  ],
+  "errors": []
+}

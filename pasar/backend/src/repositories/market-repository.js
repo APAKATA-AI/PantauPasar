@@ -60,11 +60,19 @@ export function createMarketRepository(pool) {
 
     async findRegionalAverages({ product, province, unit }) {
       const { rows } = await pool.query(
-        `SELECT city, AVG(price)::numeric AS average_price
-         FROM market_prices
-         WHERE commodity = $1 AND province = $2 AND unit = $3
-           AND observed_at >= NOW() - INTERVAL '30 days'
-         GROUP BY city
+        `WITH latest AS (
+           SELECT city, MAX(observed_at::date) AS day
+           FROM market_prices
+           WHERE commodity = $1 AND province = $2 AND unit = $3
+             AND observed_at >= NOW() - INTERVAL '30 days'
+           GROUP BY city
+         )
+         SELECT prices.city, AVG(prices.price)::numeric AS average_price,
+                MAX(prices.observed_at) AS observed_at
+         FROM market_prices prices
+         JOIN latest ON prices.city = latest.city AND prices.observed_at::date = latest.day
+         WHERE prices.commodity = $1 AND prices.province = $2 AND prices.unit = $3
+         GROUP BY prices.city
          ORDER BY average_price ASC`,
         [product, province, unit],
       );

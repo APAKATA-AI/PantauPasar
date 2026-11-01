@@ -1,0 +1,86 @@
+{
+  "checked_at": "2026-11-01T04:06:51.463Z",
+  "checks": [
+    {
+      "width": 320,
+      "theme": "light",
+      "overflow": false,
+      "shortcut_selection": true,
+      "catalogue_keyboard": true,
+      "compare_keyboard": true,
+      "contrast_failures": [],
+      "contrast_samples": 79
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "overflow": false,
+      "shortcut_selection": true,
+      "catalogue_keyboard": true,
+      "compare_keyboard": true,
+      "contrast_failures": [],
+      "contrast_samples": 79
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "overflow": false,
+      "shortcut_selection": true,
+      "catalogue_keyboard": true,
+      "compare_keyboard": true,
+      "contrast_failures": [],
+      "contrast_samples": 79
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "overflow": false,
+      "shortcut_selection": true,
+      "catalogue_keyboard": true,
+      "compare_keyboard": true,
+      "contrast_failures": [],
+      "contrast_samples": 79
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "overflow": false,
+      "shortcut_selection": true,
+      "catalogue_keyboard": true,
+      "compare_keyboard": true,
+      "contrast_failures": [],
+      "contrast_samples": 80
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "overflow": false,
+      "shortcut_selection": true,
+      "catalogue_keyboard": true,
+      "compare_keyboard": true,
+      "contrast_failures": [],
+      "contrast_samples": 80
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "overflow": false,
+      "shortcut_selection": true,
+      "catalogue_keyboard": true,
+      "compare_keyboard": true,
+      "contrast_failures": [],
+      "contrast_samples": 80
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "overflow": false,
+      "shortcut_selection": true,
+      "catalogue_keyboard": true,
+      "compare_keyboard": true,
+      "contrast_failures": [],
+      "contrast_samples": 80
+    }
+  ],
+  "errors": []
+}

@@ -101,10 +101,12 @@ test("market service derives its result only from database observations", async 
     province: "Jawa Timur",
     city: "Surabaya",
   });
-  assert.equal(result.harga_rata_rata, 11_000);
-  assert.equal(result.harga_terendah, 10_000);
+  assert.equal(result.harga_rata_rata, 12_000);
+  assert.equal(result.harga_terendah, 12_000);
   assert.equal(result.harga_tertinggi, 12_000);
-  assert.equal(result.confidence_score, 85);
+  assert.equal(result.confidence_score, 90);
+  assert.deepEqual(result.tren_7_hari_terakhir.map((item) => item.harga), [10_000, 12_000]);
+  assert.equal(result.price_basis, "latest_observation_date");
   assert.equal(result.daftar_sumber.length, 1);
   assert.equal(result.daftar_sumber[0].harga, 12_000);
   assert.equal(result.demo, false);
@@ -298,26 +300,33 @@ test("market search works without PostgreSQL and keeps results separated by regi
     assert.equal(result.market_type, "web_offers");
   });
 
-  test("market service falls back to web offers when PIHPS name matching is unavailable", async () => {
+  test("market service does not retry Vleee through web search after a matching failure", async () => {
+    let searchCalls = 0;
     const service = createMarketService(
       null,
       {
         async fetchProduct() {
           throw new HttpError(
             502,
-            "GEMINI_UNAVAILABLE",
-            "Gemini temporarily unavailable",
+            "VLEEE_UNAVAILABLE",
+            "Vleee temporarily unavailable",
           );
         },
       },
-      async () => ({ market_type: "web_offers", offer_list: [] }),
+      async () => {
+        searchCalls++;
+        return { market_type: "web_offers", offer_list: [] };
+      },
     );
-    const result = await service.getMarket({
-      product: "paket data internet",
-      province: "Jawa Timur",
-      city: "Surabaya",
-    });
-    assert.equal(result.market_type, "web_offers");
+    await assert.rejects(
+      service.getMarket({
+        product: "paket data internet",
+        province: "Jawa Timur",
+        city: "Surabaya",
+      }),
+      { code: "VLEEE_UNAVAILABLE" },
+    );
+    assert.equal(searchCalls, 0);
   });
   const surabaya = await service.getMarket({
     product: "Minyak goreng",
@@ -336,4 +345,11 @@ test("market search works without PostgreSQL and keeps results separated by regi
   assert.equal(malang.kota, "Malang");
   assert.equal(surabaya.daftar_sumber[0].nama, "Bank Indonesia (PIHPS)");
   assert.deepEqual(seenRegions.map(({ city }) => city), ["Surabaya", "Malang"]);
+});
+
+test('market history retains 30 days while headline uses only latest day',async()=>{
+ const observations=Array.from({length:30},(_,i)=>({commodity:'Beras Kualitas Medium I',unit:'kg',price:10000+i*100,source_name:'PIHPS',source_url:'https://www.bi.go.id/hargapangan/',observed_at:new Date(Date.UTC(2026,9,i+1)).toISOString(),confidence_score:null}));
+ const service=createMarketService({async findObservations(){return observations;},async findRegionalAverages(){return [];}});
+ const result=await service.getMarket({product:'Beras medium',province:'Jawa Timur',city:'Surabaya'});
+ assert.equal(result.tren_7_hari_terakhir.length,30);assert.equal(result.harga_rata_rata,12900);
 });

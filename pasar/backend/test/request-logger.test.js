@@ -43,8 +43,21 @@ test("request logger includes market activity without logging other query data",
 
   assert.equal(proceeded, true);
   assert.match(messages[0], /INFO GET \/api\/market -> 200 \(45 ms\)/);
-  assert.match(messages[0], /Minyak goreng \(Surabaya, Jawa Timur\)/);
+  assert.match(messages[0], /pencarian harga/);
+  assert.doesNotMatch(messages[0], /Minyak goreng|Surabaya|Jawa Timur/);
   assert.doesNotMatch(messages[0], /secret-value/);
+});
+
+test("request logger never records secrets embedded in search fields, unknown paths, or headers", () => {
+  const messages = [];
+  const middleware = createRequestLogger({ log: (message) => messages.push(message) });
+  for (const endpoint of ["/api/market", "/api/market/products", "/api/secret-path-value"]) {
+    const response = createResponse(400);
+    middleware({ method: "GET", path: endpoint, query: { produk: "sk-PRIVATE", q: "Bearer PRIVATE", kota: "PRIVATE" },
+      headers: { authorization: "Bearer PRIVATE" } }, response, () => {});
+    response.finish();
+  }
+  assert.doesNotMatch(messages.join("\n"), /PRIVATE|secret-path-value/);
 });
 
 test("request logger skips static assets and marks failed API requests", () => {

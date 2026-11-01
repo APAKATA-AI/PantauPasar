@@ -3,7 +3,9 @@ import pg from "pg";
 
 const { Pool } = pg;
 
-export const pool = process.env.DATABASE_URL
+export const databaseEnabled = process.env.DATABASE_ENABLED === "true";
+
+export const pool = databaseEnabled && process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl:

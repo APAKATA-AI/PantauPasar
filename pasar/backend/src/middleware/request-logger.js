@@ -1,22 +1,9 @@
-const safeText = (value) =>
-  String(value ?? "")
-    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 80);
+const knownPaths = new Set(["/api/market", "/api/market/products", "/api/advisor", "/api/health", "/api/activity", "/api/calculator", "/api/simulate"]);
 
 function describeRequest(req) {
-  const query = req.query || {};
-  if (req.path === "/api/market") {
-    const product = safeText(query.produk);
-    const city = safeText(query.kota);
-    const province = safeText(query.provinsi);
-    return product && city && province
-      ? `cari harga: ${product} (${city}, ${province})`
-      : "pencarian harga";
-  }
+  if (req.path === "/api/market") return "pencarian harga";
   if (req.path === "/api/market/products")
-    return `saran produk: ${safeText(query.q) || "tanpa kata kunci"}`;
+    return "saran produk";
   if (req.path === "/api/advisor") return "permintaan AI Advisor";
   if (req.path.startsWith("/api/activity")) return "aktivitas riwayat";
   if (req.path === "/api/health") return "cek kesehatan server";
@@ -34,7 +21,7 @@ export function createRequestLogger({ log = console.log, clock = Date.now } = {}
       const status = res.statusCode;
       const level = status >= 500 ? "ERROR" : status >= 400 ? "WARN" : "INFO";
       log(
-        `[${new Date().toISOString()}] ${level} ${req.method} ${req.path} -> ${status} (${duration} ms) | ${describeRequest(req)}`,
+        `[${new Date().toISOString()}] ${level} ${["GET", "POST", "HEAD", "OPTIONS"].includes(req.method) ? req.method : "OTHER"} ${knownPaths.has(req.path) ? req.path : "/api/unknown"} -> ${status} (${duration} ms) | ${describeRequest(req)}`,
       );
     });
     next();

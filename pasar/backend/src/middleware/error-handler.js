@@ -13,14 +13,18 @@ export function errorHandler(error, req, res, _next) {
       : status === 400
         ? "INVALID_REQUEST"
         : "INTERNAL_ERROR";
-  if (status >= 500) console.error("Unhandled request error:", error);
+  if (status >= 500) console.error("API request failed", {
+    status, code: /^[A-Z_]{2,80}$/.test(code) ? code : "INTERNAL_ERROR",
+  });
+  if (Number.isFinite(error.retryAfter) && error.retryAfter > 0)
+    res.set("Retry-After", String(Math.min(3600, Math.ceil(error.retryAfter))));
   res.status(status).json({
     error: {
       code,
       message:
         status === 500
           ? "Terjadi kesalahan pada server."
-          : error.message,
+          : error instanceof HttpError ? error.message : "Permintaan tidak dapat diproses.",
     },
   });
 }

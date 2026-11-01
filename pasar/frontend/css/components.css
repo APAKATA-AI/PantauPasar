@@ -302,6 +302,20 @@ label output {
   margin-top: 18px;
   justify-content: space-between;
 }
+.search-form > .button[aria-busy="true"]::before {
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  content: "";
+  animation: market-search-spin 750ms linear infinite;
+}
+@keyframes market-search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .form-help {
   font-size: 11px;
   margin-top: 10px;
@@ -319,6 +333,11 @@ label output {
   font-size: 12px;
   padding: 4px 0;
   margin-right: 12px;
+}
+.recent .history-clear {
+  color: var(--slate);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .text-button {
   border: 0;
@@ -774,6 +793,40 @@ label output {
 }
 .price-summary {
   padding: 14px 12px;
+}
+.market-offers-panel[hidden] {
+  display: none;
+}
+.market-offers-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.market-offer {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.market-offer h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.market-offer-price {
+  margin: 0 0 8px;
+  color: var(--primary);
+  font-size: 22px;
+  font-weight: 800;
+}
+.market-offer-price small {
+  color: var(--slate);
+  font-size: 13px;
+  font-weight: 500;
+}
+.market-offer a {
+  color: var(--primary);
+  font-weight: 700;
 }
 .large-price {
   font-size: 64px;

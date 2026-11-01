@@ -7,13 +7,35 @@ const money = (n) =>
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(Number(n) || 0);
+const primaryMarketPrice = (data) =>
+  data?.market_type === "web_offers"
+    ? data.offer_list?.[0]?.price
+    : data?.harga_rata_rata;
+function setWidgetPriceLabel(label) {
+  const paragraph = $(".widget-price > p");
+  if (!paragraph) return;
+  if (!$("#widget-unit")) {
+    const unit = document.createElement("span");
+    unit.id = "widget-unit";
+    unit.textContent = "—";
+    paragraph.append(unit);
+  }
+  const textNode = [...paragraph.childNodes].find(
+    (node) => node.nodeType === Node.TEXT_NODE,
+  );
+  if (textNode) textNode.textContent = label;
+  else paragraph.insertBefore(document.createTextNode(label), paragraph.firstChild);
+}
 const number = (n) =>
   new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(n);
 const observationDate = (value, options = {}) =>
-  new Date(value).toLocaleDateString("id-ID", {
+  Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleDateString("id-ID", {
     ...options,
     timeZone: "UTC",
-  });
+  }) : "Tidak tersedia";
+const searchTime = (value) => Number.isFinite(Date.parse(value))
+  ? new Date(value).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" }) + " WIB"
+  : "Tidak tersedia";
 const safe = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -44,8 +66,8 @@ const icons = {
 };
 const modules = [
   ["harga", "Harga"],
-  ["simulasi", "Kalau naik?"],
-  ["untung", "Hitung untung"],
+  ["simulasi", "Simulasi biaya"],
+  ["untung", "Hitung keuntungan"],
   ["saran", "Tanya saran"],
 ];
 const places = {
@@ -59,6 +81,7 @@ const state = {
   query: null,
   days: 7,
   history: read("pp_history", []),
+  marketFreshness: "latest",
   ingredients: [
     { name: "Bahan utama", cost: 120000 },
     { name: "Bumbu & pelengkap", cost: 40000 },
@@ -66,9 +89,16 @@ const state = {
   profit: null,
   request: 0,
   busy: false,
+  searchSequence: 0,
+  searchController: null,
+  searchQuery: null,
+  retryUntil: 0,
 };
 state.history = (Array.isArray(state.history) ? state.history : []).filter(
-  (item) => places[item.province]?.includes(item.city),
+  (item) =>
+    typeof item?.product === "string" &&
+    typeof item?.province === "string" &&
+    typeof item?.city === "string",
 );
 function toast(message) {
   $("#toast").textContent = message;
@@ -109,17 +139,51 @@ function go(id) {
   if (location.hash === "#" + id) route();
   else location.hash = id;
 }
-function fillCities(preferred) {
-  $("#city").innerHTML = places[$("#province").value]
-    .map((city) => `<option>${city}</option>`)
+function fillCities(preferred, province = $("#province").value) {
+  $("#province").value = province;
+  const cities = places[province] || [];
+  $("#city-options").innerHTML = cities
+    .map((city) => `<option>${safe(city)}</option>`)
     .join("");
-  if (places[$("#province").value].includes(preferred))
-    $("#city").value = preferred;
-  save("pp_region", { province: $("#province").value, city: $("#city").value });
+  $("#city").value = preferred || cities[0] || "";
+  save("pp_region", { province, city: $("#city").value });
+}
+let regionRequest = 0;
+async function loadRegions(province = null) {
+  const request = ++regionRequest;
+  try {
+    const response = await PantauApi.request("/api/market/regions" + (province ? "?provinsi=" + encodeURIComponent(province) : ""));
+    if (request !== regionRequest) return;
+    const items = province ? response.data.cities : response.data.provinces;
+    if (!Array.isArray(items)) return;
+    const options = items.filter(item => typeof item?.name === "string").map(item => `<option>${safe(item.name)}</option>`).join("");
+    $(province ? "#city-options" : "#province-options").innerHTML = options;
+    if (!province) loadRegions($("#province").value);
+  } catch {
+    // Free text remains available when the official suggestions cannot be read.
+  }
+}
+async function loadCapabilities() {
+  try {
+    const { data } = await PantauApi.request("/api/health");
+    const free = data.capabilities?.free_search;
+    const unavailable = ["unconfigured", "not_configured", "unavailable", "disabled"].includes(free?.status || free)
+      || [data.vleee, data.web_search].some(value => ["not_configured", "unconfigured", "disabled"].includes(value));
+    const status = $("#provider-status");
+    status.hidden = !unavailable;
+    status.textContent = "Barang di luar katalog PIHPS belum didukung.";
+  } catch {}
 }
 let productSuggestionTimer;
 let productSuggestionRequest = 0;
+function syncCommoditySelection() {
+  const product = $("#product").value.trim().toLocaleLowerCase("id-ID");
+  $$("[data-commodity]").forEach(button => {
+    button.setAttribute("aria-pressed", String(button.dataset.commodity.toLocaleLowerCase("id-ID") === product));
+  });
+}
 function closeProductSuggestions() {
+  productSuggestionRequest++;
   const suggestions = $("#product-suggestions");
   suggestions.hidden = true;
   suggestions.replaceChildren();
@@ -130,6 +194,7 @@ async function updateProductSuggestions() {
   const requestId = ++productSuggestionRequest;
   if (query.length < 2) {
     closeProductSuggestions();
+    formHint("");
     return;
   }
   try {
@@ -142,17 +207,25 @@ async function updateProductSuggestions() {
     const items = Array.isArray(response.data.items)
       ? response.data.items
       : [];
+    const hasExactMatch = items.some(
+      ({ label }) =>
+        label.trim().toLocaleLowerCase("id-ID") ===
+        query.toLocaleLowerCase("id-ID"),
+    );
     suggestions.innerHTML = items
       .map(
         ({ label }, index) =>
           `<button type="button" class="product-suggestion" role="option" aria-selected="false" data-product-option="${index}" data-product="${safe(label)}">${safe(label)}</button>`,
       )
       .join("");
-    suggestions.hidden = items.length === 0;
-    $("#product").setAttribute("aria-expanded", String(items.length > 0));
-    $(".form-help").textContent = items.length
-      ? "Pilih komoditas yang disarankan atau lanjutkan dengan kata pencarianmu."
-      : "Belum ada saran yang cocok. Coba nama komoditas lain.";
+    const hasSuggestions = items.length > 0;
+    suggestions.hidden = !hasSuggestions;
+    $("#product").setAttribute("aria-expanded", String(hasSuggestions));
+    $(".form-help").textContent = hasExactMatch
+      ? "Bahan ditemukan di katalog. Tekan Cek harga untuk melihat data wilayahmu."
+      : hasSuggestions
+        ? "Pilih jenis bahan dari daftar agar harganya sesuai."
+        : "Bahan belum ditemukan di katalog PIHPS. Coba nama lain, misalnya beras atau cabai.";
   } catch (error) {
     if (requestId !== productSuggestionRequest) return;
     closeProductSuggestions();
@@ -161,107 +234,207 @@ async function updateProductSuggestions() {
   }
 }
 function normalizedMarket(data) {
+  const verifiedSources = Array.isArray(data?.daftar_sumber)
+    ? data.daftar_sumber.every((source) => {
+        if (
+          typeof source?.nama !== "string" ||
+          !source.nama.trim() ||
+          (data?.market_type === "web_offers"
+            ? !Number.isFinite(Date.parse(source.diakses_pada)) || (source.tanggal !== null && !Number.isFinite(Date.parse(source.tanggal)))
+            : typeof source.tanggal !== "string" || !Number.isFinite(Date.parse(source.tanggal))) ||
+          typeof source.url !== "string"
+        )
+          return false;
+        try {
+          const url = new URL(source.url);
+          return url.protocol === "https:" && !url.username && !url.password;
+        } catch {
+          return false;
+        }
+      })
+    : false;
   if (
+    data?.demo === true ||
     !data ||
     !Number.isFinite(data.harga_rata_rata) ||
     data.harga_rata_rata <= 0 ||
     !Array.isArray(data.tren_7_hari_terakhir) ||
     !Array.isArray(data.perbandingan_wilayah) ||
+    data.perbandingan_wilayah.some(item => !item || typeof item.kota !== "string" || !Number.isFinite(item.harga) || item.harga <= 0) ||
     !Array.isArray(data.daftar_sumber) ||
+    !data.daftar_sumber.length ||
+    !verifiedSources ||
+    !Number.isFinite(Date.parse(data.updated_at)) ||
     !data.satuan ||
     !Number.isFinite(data.harga_terendah) ||
     !Number.isFinite(data.harga_tertinggi) ||
     (data.confidence_score !== null &&
-      !Number.isFinite(data.confidence_score))
+      !Number.isFinite(data.confidence_score)) ||
+    (data.market_type === "web_offers" &&
+      (!Array.isArray(data.offer_list) ||
+        !data.offer_list.length ||
+        data.offer_list.some(
+          (offer) =>
+            !offer ||
+            typeof offer.title !== "string" ||
+            !Number.isSafeInteger(offer.price) ||
+            offer.price <= 0 ||
+            typeof offer.unit !== "string" ||
+            !offer.unit.trim() ||
+            !Number.isFinite(Date.parse(offer.accessed_at)) ||
+            (offer.source_date !== null && !Number.isFinite(Date.parse(offer.source_date))) ||
+            typeof offer.source_url !== "string" ||
+            !data.daftar_sumber.some(
+              (source) =>
+                source.url === offer.source_url &&
+                source.harga === offer.price && source.satuan === offer.unit,
+            ),
+        )))
   )
     throw new Error(
-      "Format harga belum lengkap. Coba lagi atau periksa sambungan backend.",
+      "Harga belum memiliki data sumber yang terverifikasi. Tidak ada harga contoh yang ditampilkan.",
     );
   return data;
 }
+function displayMarket(data, query, freshness) {
+  state.market = data;
+  state.query = {
+    ...query,
+    product: data.produk || query.product,
+  };
+  state.marketFreshness = freshness;
+  state.days = 7;
+  state.history = [
+    state.query,
+    ...state.history.filter(
+      (item) =>
+        item.product !== state.query.product ||
+        item.city !== state.query.city ||
+        item.province !== state.query.province,
+    ),
+  ].slice(0, 5);
+  save("pp_history", state.history);
+  renderResult();
+  renderWidget();
+  history();
+  go("hasil");
+}
 function history() {
   const items = Array.isArray(state.history) ? state.history : [];
+  $(".recent").hidden = items.length === 0;
   $("#recent-searches").innerHTML = items.length
-    ? items
+    ? `${items
         .slice(0, 3)
         .map(
           (q, i) =>
             `<button type="button" class="text-button" data-history="${i}">${safe(q.product)} · ${safe(q.city)}</button>`,
         )
-        .join("")
+        .join("")}<button type="button" class="text-button history-clear" data-clear-history>Hapus riwayat</button>`
     : "Belum ada pencarian. Mulai dari produk di atas.";
 }
-async function marketSearch(event) {
+function showSearchError(message) {
+  const error = $("#search-error");
+  error.textContent = message;
+  error.hidden = !message;
+}
+function setSearchBusy(busy) {
+  state.busy = busy;
+  $("#search-button").disabled = busy;
+  $("#search-button").toggleAttribute("aria-busy", busy);
+  $("#search-button").textContent = busy ? "Mencari sumber harga…" : "Cek harga";
+  $("#refresh-market").disabled = busy;
+  $("#refresh-market").textContent = busy ? "Memperbarui…" : "Perbarui dari sumber";
+  $("#cancel-search").hidden = !busy;
+}
+function cancelSearch(message = "Pencarian dibatalkan. Kamu bisa mencoba nama barang atau wilayah lain.") {
+  if (!state.busy) return;
+  state.searchSequence++;
+  state.searchController?.abort();
+  state.searchController = null;
+  setSearchBusy(false);
+  formHint(message);
+}
+async function marketSearch(event, { force = false } = {}) {
   event?.preventDefault();
-  if (state.busy) return;
-  const q = {
-    province: $("#province").value,
-    city: $("#city").value,
+  const q = force && state.searchQuery ? { ...state.searchQuery } : {
+    province: $("#province").value.trim(),
+    city: $("#city").value.trim(),
     product: $("#product").value.trim(),
+    compare: $("#compare-cities").value.trim(),
   };
-  if (!q.product) return;
-  state.busy = true;
-  const button = $("#search-button");
-  button.disabled = true;
-  const steps = ["Mencari sumber harga", "Memeriksa angka", "Menyiapkan hasil"];
-  button.textContent = steps[0];
-  let i = 0;
-  const loading = setInterval(() => (button.textContent = steps[++i % 3]), 700);
-  try {
-    const params = new URLSearchParams({
-      provinsi: q.province,
-      kota: q.city,
-      produk: q.product,
-    });
-    const response = await PantauApi.request("/api/market?" + params);
-    const data = normalizedMarket(response.data);
-    q.product = data.produk || q.product;
-    data.demo = !!data.demo;
-    state.market = data;
-    state.query = q;
-    state.days = 7;
-    state.history = [
-      q,
-      ...state.history.filter(
-        (h) => h.product !== q.product || h.city !== q.city,
-      ),
-    ].slice(0, 5);
-    save("pp_history", state.history);
-    history();
-    renderResult();
-    renderWidget();
-    go("hasil");
-    toast("Harga dimuat" + (data.demo ? " · data contoh" : ""));
-    closeProductSuggestions();
-    void PantauApi.request(
-      "/api/activity",
-      { method: "POST", body: JSON.stringify(q) },
-      () => ({ item: q }),
-    ).catch((error) => toast(error.message));
-  } catch (error) {
-    toast(error.message);
-    if (error.status === 429) {
-      let seconds = Math.min(300, Math.max(1, error.retry));
-      clearInterval(loading);
-      button.textContent = `Coba lagi dalam ${seconds} detik`;
-      await new Promise((resolve) => {
-        const countdown = setInterval(() => {
-          seconds--;
-          button.textContent = `Coba lagi dalam ${seconds} detik`;
-          if (seconds <= 0) {
-            clearInterval(countdown);
-            resolve();
-          }
-        }, 1000);
-      });
-    }
-  } finally {
-    clearInterval(loading);
-    button.disabled = false;
-    button.innerHTML =
-      'Cek harga <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>';
-    state.busy = false;
+  if (!q.product || !q.province || !q.city) {
+    showSearchError("Isi nama barang, provinsi, dan kota atau kabupaten terlebih dahulu.");
+    return;
   }
+  if (state.retryUntil > Date.now()) {
+    const message = `Batas permintaan tercapai. Coba lagi dalam ${Math.ceil((state.retryUntil - Date.now()) / 1000)} detik.`;
+    showSearchError(message);
+    if (force) { $("#market-message").textContent = message; $("#market-message").className = "notice error"; }
+    return;
+  }
+  cancelSearch();
+  closeProductSuggestions();
+  showSearchError("");
+  state.searchQuery = q;
+  const sequence = ++state.searchSequence;
+  const cached = PantauMarketCache.read(q);
+  if (cached.entry && cached.fresh && !force) {
+    try {
+      const data = normalizedMarket(cached.entry.market);
+      displayMarket(data, data.resolved_query || q, "cached");
+      formHint("Data dimuat dari browser. Pilih Perbarui dari sumber untuk mengambil ulang.");
+      return;
+    } catch {}
+  }
+  setSearchBusy(true);
+  state.searchController = new AbortController();
+  formHint("Sedang membaca sumber. Data mengikuti ketersediaan sumber resmi.");
+  if (force) $("#market-message").textContent = "Memperbarui dari sumber. Hasil sebelumnya tetap terlihat sampai pembacaan selesai.";
+  try {
+    const params = new URLSearchParams({ provinsi: q.province, kota: q.city, produk: q.product });
+    if (q.compare) params.set("bandingkan", q.compare);
+    if (force) params.set("refresh", "1");
+    const response = await PantauApi.request("/api/market?" + params, { signal: state.searchController.signal });
+    if (sequence !== state.searchSequence) return;
+    const data = normalizedMarket(response.data);
+    const resolvedQuery = data.resolved_query || q;
+    fillCities(resolvedQuery.city, resolvedQuery.province);
+    const saved = PantauMarketCache.write(q, data, data.market_type === "web_offers"
+      ? window.PP_CONFIG.webOfferCacheTtlMs : window.PP_CONFIG.marketCacheTtlMs);
+    const freshness = data.cache?.status === "stale" ? "stale" : data.cache?.hit ? "server" : "latest";
+    displayMarket(data, resolvedQuery, freshness);
+    formHint(freshness === "stale" ? "Pembaruan gagal. Hasil lama diberi penanda pada halaman hasil." : "Hasil tersedia bersama sumber dan waktu pengambilannya.");
+    if (saved.error) toast("Harga dimuat, tetapi penyimpanan browser tidak tersedia.");
+  } catch (error) {
+    if (sequence !== state.searchSequence || error.code === "CANCELLED") return;
+    if (error.status === 429) state.retryUntil = Date.now() + Math.min(300, Math.max(1, error.retry)) * 1000;
+    const message = error.status === 429
+      ? `${error.message} Coba lagi dalam ${Math.ceil((state.retryUntil - Date.now()) / 1000)} detik.`
+      : error.message;
+    let usedStale = false;
+    if (cached.entry) {
+      try {
+        displayMarket(normalizedMarket(cached.entry.market), cached.entry.market.resolved_query || q, "stale");
+        usedStale = true;
+      } catch {}
+    }
+    if (!usedStale && force && state.market) {
+      state.marketFreshness = "stale";
+      renderResult();
+      renderWidget();
+    }
+    showSearchError(message);
+    formHint(usedStale ? "Pembaruan gagal; hasil lama ditandai dan waktu pengambilannya tetap ditampilkan." : message);
+    if (usedStale || force) $("#market-message").textContent += ` ${message}`;
+  } finally {
+    if (sequence === state.searchSequence) {
+      state.searchController = null;
+      setSearchBusy(false);
+    }
+  }
+}
+function formHint(message) {
+  $(".form-help").textContent = message;
 }
 function series(data = state.market, days = 30) {
   const observations = (data?.tren_7_hari_terakhir || [])
@@ -287,35 +460,82 @@ function trend(data) {
 function renderResult() {
   const d = state.market,
     q = state.query,
-    t = trend(d);
-  $("#result-title").textContent = `${q.product} di ${q.city}`;
-  $("#updated-at").textContent = d.demo
-    ? `Contoh dibuat ${observationDate(d.updated_at || Date.now(), { dateStyle: "long" })}`
-    : `Data harian per ${observationDate(d.updated_at || Date.now(), { dateStyle: "long" })}`;
-  $("#result-mode").textContent = d.demo ? "Data contoh" : "Data dari layanan";
-  $("#market-message").textContent = d.demo
-    ? "Data harga pasar belum tersedia dari layanan. Angka di bawah adalah data contoh untuk mencoba aplikasi, bukan acuan belanja hari ini."
-    : "Periksa tanggal dan cakupan sumber sebelum menentukan belanja.";
+    t = trend(d),
+    sourceDate = observationDate(d.updated_at, { dateStyle: "long" });
+  const webOffers = d.market_type === "web_offers";
+  const fetchedAt = searchTime(d.cache?.fetched_at || d.searched_at || (webOffers ? d.updated_at : null));
+  $("#result-title").textContent = webOffers
+    ? q.product
+    : `${q.product} di ${q.city}`;
+  $("#updated-at").textContent = webOffers
+    ? `Wilayah pencarian: ${q.city}, ${q.province} · bukan konfirmasi lokasi penjual`
+    : `Tanggal data sumber: ${sourceDate}`;
+  $("#result-mode").textContent =
+    ["cached", "server"].includes(state.marketFreshness)
+      ? "Data tersimpan"
+      : state.marketFreshness === "stale"
+        ? "Data mungkin sudah tidak terbaru"
+        : d.comparison
+          ? "Perbandingan wilayah"
+        : webOffers
+          ? "Penawaran dari web"
+          : "Data sumber · PIHPS";
+  $("#market-message").className =
+    state.marketFreshness === "stale" ? "notice error" : "notice neutral";
+  $("#result-mode").className = state.marketFreshness === "stale" ? "status warning" : "status neutral";
+  $("#market-message").textContent =
+    state.marketFreshness === "cached"
+      ? "Menampilkan hasil pencarian yang tersimpan. Pilih Perbarui dari sumber untuk memeriksa ulang."
+      : state.marketFreshness === "server"
+        ? "Menampilkan hasil pencarian yang tersimpan. Pilih Perbarui dari sumber untuk memeriksa ulang."
+      : state.marketFreshness === "stale"
+        ? `Pembaruan gagal. Data tersimpan ditampilkan dan mungkin sudah tidak berlaku. ${webOffers ? "Tanggal harga mengikuti masing-masing sumber." : `Tanggal harga sumber: ${sourceDate}.`}`
+        : d.comparison
+          ? `Harga dibandingkan untuk ${d.perbandingan_wilayah.map((item) => item.kota).join(", ")}. Periksa satuan dan tanggal tiap wilayah sebelum membandingkan.`
+        : webOffers
+          ? `Penawaran dicari dari sumber web. Wilayah hanya untuk relevansi; pastikan stok, harga, dan ongkir pada halaman penjual. Harga hanya ditampilkan jika terverifikasi pada cuplikan sumber HTTPS.`
+          : d.ai_assisted
+          ? `AI membantu mencocokkan komoditas; harga diverifikasi dari PIHPS. Tanggal data: ${sourceDate}.`
+          : `Harga diambil dari PIHPS. Tanggal data: ${sourceDate}.`;
+  $("#cache-age").textContent = `Terakhir diambil: ${fetchedAt}. Tanggal harga mengikuti sumber.`;
+  const unavailable = Array.isArray(d.unavailable_locations) ? d.unavailable_locations : [];
+  $("#coverage-note").hidden = !unavailable.length && !webOffers;
+  $("#coverage-note").textContent = unavailable.length
+    ? `Data belum tersedia untuk ${unavailable.map(item => `${item.city}, ${item.province}`).join("; ")}. Hasil ini belum mencakup seluruh wilayah yang diminta.`
+    : "Cakupan web terbatas pada cuplikan sumber yang ditemukan. Harga dengan kemasan atau satuan berbeda tidak dirata-ratakan. Lokasi penjual belum tentu sesuai wilayah pencarian.";
+  const resultPriceLabel = $("#result-price-label");
+  if (resultPriceLabel)
+    resultPriceLabel.textContent = webOffers
+      ? "Salah satu penawaran"
+      : "Harga rata-rata";
+  const displayedPrice = primaryMarketPrice(d);
+  const displayedUnit = webOffers ? d.offer_list[0].unit : d.satuan;
   $("#result-price").innerHTML =
-    `<span class="sr-only">${money(d.harga_rata_rata)} per ${safe(d.satuan)}</span><span id="animated-price" aria-hidden="true">${money(d.harga_rata_rata)}</span> <small aria-hidden="true">/ ${safe(d.satuan)}</small>`;
+    `<span class="sr-only">${money(displayedPrice)} per ${safe(displayedUnit)}</span><span id="animated-price" aria-hidden="true">${money(displayedPrice)}</span> <small aria-hidden="true">/ ${safe(displayedUnit)}</small>`;
   cancelAnimationFrame(renderResult.priceFrame);
-  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  if (!webOffers && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     const start = performance.now();
     const priceNode = $("#animated-price");
     const animate = now => {
       const progress = Math.min(1, (now - start) / 700);
-      priceNode.textContent = money(Math.round(d.harga_rata_rata * (0.85 + 0.15 * (1 - Math.pow(1 - progress, 3)))));
+      priceNode.textContent = money(Math.round(displayedPrice * (0.85 + 0.15 * (1 - Math.pow(1 - progress, 3)))));
       if (progress < 1) renderResult.priceFrame = requestAnimationFrame(animate);
     };
     renderResult.priceFrame = requestAnimationFrame(animate);
   }
   $("#result-low").textContent = money(d.harga_terendah);
   $("#result-high").textContent = money(d.harga_tertinggi);
+  $(".price-range").hidden = webOffers;
   $("#result-trend").className = "status " + (t.change > 0 ? "up" : "good");
   $("#result-trend").textContent =
     `${t.change > 0 ? "↗ Naik" : t.change < 0 ? "↘ Turun" : "Tetap"} ${number(Math.abs(t.percent))}%`;
   $("#result-change").textContent =
-    `${t.change >= 0 ? "Naik" : "Turun"} ${money(Math.abs(t.change))} dibanding awal seri yang tersedia.`;
+    t.change === 0 ? "Harga tidak berubah dibanding awal seri yang tersedia." : `${t.change > 0 ? "Naik" : "Turun"} ${money(Math.abs(t.change))} dibanding awal seri yang tersedia.`;
+  $("#result-trend").hidden = webOffers || series(d, 7).length < 2;
+  $("#result-change").hidden = webOffers || series(d, 7).length < 2;
+  $(".price-summary > h2").hidden = webOffers;
+  $("#confidence").hidden = webOffers;
+  $("#confidence-copy").hidden = webOffers || d.confidence_score === null;
   const score =
     d.confidence_score === null
       ? null
@@ -336,20 +556,39 @@ function renderResult() {
     ? rows
         .map(
           (r) =>
-            `<div class="comparison-row ${r.kota === q.city ? "current" : ""}"><div><span>${safe(r.kota)}${r.kota === q.city ? " · pilihanmu" : ""}</span><strong>${money(r.harga)}</strong></div><div class="comparison-track"><i style="width:${Math.max(0, Math.min(100, (r.harga / max) * 100))}%"></i></div></div>`,
+            `<div class="comparison-row ${r.kota === q.city ? "current" : ""}"><div><span>${safe(r.kota)}${r.kota === q.city ? " · pilihanmu" : ""}<small>${safe(r.provinsi || "")} · ${observationDate(r.tanggal || d.updated_at, { dateStyle: "medium" })}</small></span><strong>${money(r.harga)} / ${safe(r.satuan || d.satuan)}</strong></div><div class="comparison-track"><i style="width:${Math.max(0, Math.min(100, (r.harga / max) * 100))}%"></i></div></div>`,
         )
         .join("")
-    : '<p class="small">Perbandingan belum tersedia dari layanan. Coba kota terdekat.</p>';
+    : '<p class="small">Belum ada harga pembanding. Pilih kota lain melalui Ubah pencarian, lalu buka Bandingkan dengan kota lain.</p>';
+  $("#region-comparison").closest("article").hidden =
+    webOffers && !d.comparison;
+  $(".chart-panel").hidden = webOffers;
+  $("#market-offers-panel").hidden = !webOffers;
+  $("#market-offers-list").innerHTML = webOffers
+    ? d.offer_list
+        .map((offer) => {
+          const dateText = offer.source_date
+            ? `Tanggal pada sumber: ${observationDate(offer.source_date, { dateStyle: "long" })}`
+            : "Tanggal harga tidak dicantumkan sumber";
+          return `<article class="market-offer"><h3>${safe(offer.title)}</h3><p class="market-offer-price">${money(offer.price)} <small>/ ${safe(offer.unit)}</small></p><p class="small">${offer.city ? `Wilayah pada sumber: ${safe(offer.city)}, ${safe(offer.province || "")}` : "Lokasi penjual belum diverifikasi"}</p>${offer.seller ? `<p class="small">Penjual: ${safe(offer.seller)}</p>` : ""}<p class="small">${safe(offer.source_name)} · ${dateText}<br>Ditemukan: ${searchTime(offer.accessed_at)}</p><a href="${safe(offer.source_url)}" target="_blank" rel="noopener noreferrer">Lihat penawaran ↗</a></article>`;
+        })
+        .join("")
+    : "";
   $("#result-sources").innerHTML = d.daftar_sumber.length
     ? d.daftar_sumber
         .map((s, i) => {
           let url = null;
           try {
             const parsed = new URL(s.url);
-            if (["http:", "https:"].includes(parsed.protocol))
+            if (parsed.protocol === "https:" && !parsed.username && !parsed.password)
               url = parsed.href;
           } catch {}
-          return `<details ${i === 0 ? "open" : ""}><summary>${safe(s.nama)}</summary><p>${observationDate(s.tanggal, { dateStyle: "long" })}<br>Komoditas PIHPS: ${safe(s.komoditas || q.product)}<br>Harga: ${Number.isFinite(s.harga) ? money(s.harga) : "Tidak disertakan"}<br>${d.demo ? "Angka ilustrasi lokal. Tidak diambil dari situs resmi." : ""}</p>${url ? `<a href="${safe(url)}" target="_blank" rel="noopener noreferrer">Buka sumber ↗</a>` : ""}</details>`;
+          const sourceDateText = s.tanggal_sumber
+            ? `Tanggal pada sumber: ${observationDate(s.tanggal_sumber, { dateStyle: "long" })}`
+            : webOffers
+              ? "Tanggal harga tidak dicantumkan sumber"
+              : observationDate(s.tanggal, { dateStyle: "long" });
+          return `<details ${i === 0 ? "open" : ""}><summary>${safe(s.nama)}</summary><p>${sourceDateText}${webOffers ? `<br>Ditemukan: ${observationDate(s.diakses_pada, { dateStyle: "long" })}` : ""}<br>Komoditas: ${safe(s.komoditas || q.product)}<br>Harga: ${Number.isFinite(s.harga) ? `${money(s.harga)}${s.satuan ? ` / ${safe(s.satuan)}` : ""}` : "Tidak disertakan"}</p>${url ? `<a href="${safe(url)}" target="_blank" rel="noopener noreferrer">${webOffers ? "Lihat penawaran ↗" : "Buka sumber ↗"}</a>` : ""}</details>`;
         })
         .join("")
     : '<p class="small">Sumber belum disertakan. Periksa layanan data sebelum menggunakan harga.</p>';
@@ -357,10 +596,12 @@ function renderResult() {
     .map((s) => `<span>${safe(s.nama)}</span>`)
     .join("");
   $(".source-strip>span").textContent = "Sumber hasil terakhir";
-  $(".source-strip small").textContent = d.demo
-    ? "Data contoh lokal"
-    : "Sesuai respons layanan";
-  const shareText = `${d.demo ? "[DATA CONTOH, bukan harga terkini] " : ""}${q.product} di ${q.city}: ${money(d.harga_rata_rata)}/${d.satuan}. ${new Date().toLocaleDateString("id-ID")}. PantauPasar.`;
+  $(".source-strip small").textContent = webOffers
+    ? `Waktu pencarian: ${sourceDate}; tanggal dari tiap sumber ditampilkan jika tersedia.`
+    : d.demo
+      ? "Data contoh lokal"
+      : `Tanggal data: ${sourceDate}`;
+  const shareText = `${state.marketFreshness === "stale" ? "[DATA LAMA, pembaruan gagal] " : ""}${webOffers ? "Penawaran " : ""}${q.product}${webOffers ? ` (wilayah pencarian ${q.city})` : ` di ${q.city}`}: ${money(displayedPrice)}/${displayedUnit}. ${webOffers ? `Diambil ${fetchedAt}; tanggal harga periksa di sumber` : `Tanggal harga ${sourceDate}`}. Sumber: ${d.daftar_sumber[0].url}. PantauPasar.`;
   $("#share-price").href = "https://wa.me/?text=" + encodeURIComponent(shareText);
   updateContext();
 }
@@ -373,8 +614,18 @@ function drawChart() {
     ),
   );
   const values = series(state.market, state.days);
+  $("#history-rows").innerHTML = values.map(item => `<tr><td>${observationDate(item.tanggal, {dateStyle:"medium"})}</td><td>${money(item.harga)}</td><td>${safe(state.market.satuan)}</td></tr>`).join("");
+  $("#export-prices").disabled = !values.length;
   $("#chart-note").textContent =
-    `${values.length} pembacaan dalam ${state.days} hari terakhir · ${state.market.demo ? "data contoh" : "data layanan"}`;
+    `${values.length} pembacaan dalam ${state.days} hari terakhir · ${
+      state.market.demo
+        ? "data contoh"
+        : state.marketFreshness === "cached"
+          ? "cache browser"
+          : state.marketFreshness === "stale"
+            ? "cache lama"
+            : "PIHPS"
+    }`;
   $("#chart-summary").textContent = values.length
     ? `Harga ${money(values[0].harga)} pada awal seri menjadi ${money(values.at(-1).harga)} pada akhir seri. Satuan ${state.market.satuan}.`
     : "Belum ada riwayat harga. Coba pencarian lain.";
@@ -406,8 +657,9 @@ function drawChart() {
 
   context.font = "12px Manrope, system-ui, sans-serif";
   context.textBaseline = "middle";
-  context.strokeStyle = "#d9e4d7";
-  context.fillStyle = "#53665a";
+  const palette = getComputedStyle(document.documentElement);
+  context.strokeStyle = palette.getPropertyValue("--line").trim();
+  context.fillStyle = palette.getPropertyValue("--slate").trim();
   context.lineWidth = 1;
   for (let tick = 0; tick <= 4; tick++) {
     const price = high - ((high - low) * tick) / 4;
@@ -441,21 +693,21 @@ function drawChart() {
   context.lineTo(x(values.length - 1), margin.top + height);
   context.lineTo(x(0), margin.top + height);
   context.closePath();
-  context.fillStyle = "#eaf4e7";
+  context.fillStyle = palette.getPropertyValue("--primary-soft").trim();
   context.fill();
   context.beginPath();
   values.forEach((item, index) => {
     if (index === 0) context.moveTo(x(index), y(item.harga));
     else context.lineTo(x(index), y(item.harga));
   });
-  context.strokeStyle = "#2e7a1f";
+  context.strokeStyle = palette.getPropertyValue("--primary").trim();
   context.lineWidth = 2;
   context.stroke();
   values.forEach((item, index) => {
     if (item.harga !== minimum && item.harga !== maximum) return;
     context.beginPath();
     context.arc(x(index), y(item.harga), 4, 0, Math.PI * 2);
-    context.fillStyle = "#2e7a1f";
+    context.fillStyle = palette.getPropertyValue("--primary").trim();
     context.fill();
   });
 }
@@ -481,21 +733,51 @@ function renderWidget() {
     chart.setAttribute("aria-label", "Grafik tren belum tersedia");
     return;
   }
+  if (d.market_type === "web_offers") {
+    const firstOffer = d.offer_list[0];
+    $("#widget-product").textContent = q.product;
+    $("#widget-location").textContent =
+      `Wilayah relevansi: ${q.city}, ${q.province}`;
+    $("#widget-value").textContent = money(firstOffer.price);
+    $("#widget-unit").textContent = firstOffer.unit;
+    $("#widget-trend").hidden = true;
+    $("#widget-low").textContent = "—";
+    $("#widget-high").textContent = "—";
+    $(".widget-head .demo-label").textContent =
+      state.marketFreshness === "stale" ? "Data lama · pembaruan gagal" : ["cached", "server"].includes(state.marketFreshness) ? "Data tersimpan" : "Dari web";
+    setWidgetPriceLabel("Salah satu penawaran / ");
+    $(".widget-bottom").hidden = true;
+    $(".widget-note").textContent =
+      `${d.offer_list.length} penawaran dengan tautan sumber. Tanggal sumber ditampilkan jika tersedia.`;
+    $("#week-strip").textContent =
+      "Bandingkan harga dan satuan pada daftar penawaran.";
+    chart.querySelector(".trend-area").setAttribute("d", "");
+    chart.querySelector(".trend-line").setAttribute("d", "");
+    chart.setAttribute("aria-label", "Tren harga tidak tersedia untuk penawaran web");
+    return;
+  }
+  setWidgetPriceLabel("Harga rata-rata / ");
+  $(".widget-bottom").hidden = false;
+  $("#widget-trend").hidden = false;
   $("#widget-product").textContent = q.product;
   $("#widget-location").textContent = `${q.city}, ${q.province}`;
   $("#widget-value").textContent = money(d.harga_rata_rata);
   $("#widget-unit").textContent = d.satuan;
   $("#widget-low").textContent = money(d.harga_terendah);
   $("#widget-high").textContent = money(d.harga_tertinggi);
-  $(".widget-head .demo-label").textContent = d.demo
-    ? "Data contoh"
-    : "Data layanan";
+  $(".widget-head .demo-label").textContent =
+    ["cached", "server"].includes(state.marketFreshness)
+      ? "Data tersimpan"
+      : state.marketFreshness === "stale"
+        ? "Data mungkin sudah tidak terbaru"
+        : "Data sumber";
   $(".widget-note").textContent = d.demo
     ? "Contoh tampilan, bukan harga pasar."
-    : "Periksa sumber dan tanggal data.";
+    : `${d.daftar_sumber[0].nama} · data ${observationDate(d.updated_at)}`;
   const t = trend(d);
+  $("#widget-trend").hidden = series(d, 7).length < 2;
   $("#widget-trend").textContent =
-    `${t.change >= 0 ? "↗ Naik" : "↘ Turun"} ${number(Math.abs(t.percent))}%`;
+    `${t.change > 0 ? "↗ Naik" : t.change < 0 ? "↘ Turun" : "Tetap"} ${number(Math.abs(t.percent))}%`;
   $("#widget-trend").className = "status " + (t.change >= 0 ? "up" : "good");
   const week = series(d, 7);
   const values = week.map((item) => item.harga);
@@ -614,7 +896,7 @@ function profit() {
   $("#profit-status").className =
     "status " + (gain < 0 ? "danger" : margin < 20 ? "warning" : "good");
   $("#profit-status").textContent =
-    gain < 0 ? "↓ Rugi" : margin < 20 ? "! Margin tipis" : "✓ Masih untung";
+    gain < 0 ? "↓ Rugi" : margin < 20 ? "Untung kotor" : "Untung kotor";
   $("#profit-details").innerHTML = [
     ["Total biaya bahan", cost],
     ["Biaya per produk", unit],
@@ -642,7 +924,7 @@ function simulation() {
   $("#sim-status").className =
     "status " + (after < 0 ? "danger" : margin < 20 ? "warning" : "good");
   $("#sim-status").textContent =
-    after < 0 ? "↓ Rugi" : margin < 20 ? "! Waspada" : "✓ Aman dalam simulasi";
+    after < 0 ? "↓ Rugi" : margin < 20 ? "! Waspada" : "Untung dalam skenario ini";
   $("#before-value").textContent = money(before);
   $("#after-value").textContent = money(after);
   const max = Math.max(1, Math.abs(before), Math.abs(after));
@@ -692,42 +974,35 @@ function useMarket() {
     return;
   }
   const match = state.ingredients.find((r) => r.name === state.query.product);
-  if (match) match.cost = state.market.harga_rata_rata;
+  const marketPrice = primaryMarketPrice(state.market);
+  if (match) match.cost = marketPrice;
   else
     state.ingredients.push({
       name: state.query.product,
-      cost: state.market.harga_rata_rata,
+      cost: marketPrice,
     });
   renderIngredients();
   toast(
-    `Biaya ditambahkan untuk 1 ${state.market.satuan}. Sesuaikan dengan pemakaianmu.`,
+    `${state.marketFreshness === "stale" ? "Memakai harga lama. " : ""}Biaya ditambahkan untuk ${state.market.market_type === "web_offers" ? state.market.offer_list[0].unit : `1 ${state.market.satuan}`}. Sesuaikan dengan pemakaianmu.`,
   );
   go("untung");
 }
 function updateContext() {
   $("#advisor-context").textContent = state.query
-    ? `Berdasarkan ${state.market.demo ? "contoh " : ""}harga ${state.query.product.toLowerCase()} di ${state.query.city}: ${money(state.market.harga_rata_rata)} / ${state.market.satuan}. ${new Date().toLocaleDateString("id-ID", { dateStyle: "long" })}.`
+    ? `${state.marketFreshness === "stale" ? "Data lama, pembaruan gagal. " : ""}Berdasarkan ${state.market.market_type === "web_offers" ? "penawaran web untuk pencarian wilayah" : "harga di"} ${state.query.city}: ${state.query.product.toLowerCase()} ${money(primaryMarketPrice(state.market))} / ${state.market.market_type === "web_offers" ? state.market.offer_list[0].unit : state.market.satuan}. ${state.market.market_type === "web_offers" ? `Diambil ${searchTime(state.market.searched_at || state.market.updated_at)}; tanggal harga mengikuti sumber.` : `Tanggal harga ${observationDate(state.market.updated_at, { dateStyle: "long" })}.`}`
     : "Belum ada pencarian harga. Kamu bisa bertanya secara umum atau cek harga dahulu untuk menambahkan konteks.";
-}
-function localAdvice(question) {
-  const p = state.profit;
-  const stock = /stok|belanja/i.test(question);
-  return {
-    ringkasan: stock
-      ? "Mulai dari kebutuhan penjualan, bukan dugaan harga besok."
-      : `Dari inputmu, untung kotor saat ini ${money(p.gain)} per produk.`,
-    yang_perlu_dilakukan: stock
-      ? "Catat penjualan harian dan umur simpan bahan. Bandingkan harga dua pemasok, lalu beli sesuai kebutuhan yang benar-benar terjual."
-      : `Periksa ulang biaya bahan dan operasional. Coba skenario kenaikan 10% di Kalau naik?, lalu bandingkan opsi porsi, pemasok, atau harga jual.`,
-    hati_hati:
-      "Ini saran contoh berbasis aturan lokal. Harga demo bukan harga terkini dan tidak dapat dipakai untuk meramalkan kenaikan. Periksa harga pemasok sebelum mengambil keputusan.",
-  };
 }
 async function ask(event) {
   event.preventDefault();
   const question = $("#question").value.trim();
   if (!question || $("#ask-button").disabled) return;
+  const adviceController = new AbortController();
+  state.adviceController = adviceController;
   $("#ask-button").disabled = true;
+  $("#ask-button").textContent = "Menyusun saran…";
+  $("#ask-button").setAttribute("aria-busy", "true");
+  $("#cancel-advice").hidden = false;
+  $("#advice-status").textContent = "Pertanyaan sedang dikirim. Kamu dapat membatalkan sambil menunggu.";
   $(".chat-empty")?.remove();
   const bubble = document.createElement("p");
   bubble.className = "chat-question";
@@ -737,13 +1012,13 @@ async function ask(event) {
   answer.className = "chat-answer";
   answer.textContent = "Sedang menyusun saran…";
   $("#conversation").append(answer);
-  $("#question").value = "";
   answer.scrollIntoView({ block: "nearest" });
   try {
     const response = await PantauApi.request(
       "/api/advisor",
       {
         method: "POST",
+        signal: adviceController.signal,
         body: JSON.stringify({
           pertanyaan: question,
           konteks: state.query,
@@ -751,11 +1026,12 @@ async function ask(event) {
           perhitungan: state.profit,
         }),
       },
-      () => localAdvice(question),
     );
     const d = response.data;
     if (!d.ringkasan || !d.yang_perlu_dilakukan || !d.hati_hati)
       throw new Error("Jawaban layanan belum lengkap. Coba pertanyaan lain.");
+    if ($("#question").value.trim() === question) $("#question").value = "";
+    $("#advice-status").textContent = "Saran selesai. Periksa kesesuaiannya dengan kondisi usahamu.";
     answer.innerHTML = [
       ["Ringkasan", d.ringkasan],
       [
@@ -769,16 +1045,28 @@ async function ask(event) {
       .map(([h, t]) => `<h3>${h}</h3><p>${safe(t)}</p>`)
       .join("");
   } catch (error) {
-    answer.textContent = error.message + " Kirim ulang untuk mencoba lagi.";
+    answer.classList.add("answer-error");
+    answer.textContent = error.code === "CANCELLED" ? "Permintaan dibatalkan. Pertanyaan tetap tersimpan di kolom." : "Saran belum berhasil dimuat. " + error.message;
+    if (error.code !== "CANCELLED") {
+      const retry = document.createElement("button"); retry.type = "button"; retry.className = "text-button"; retry.textContent = "Coba lagi";
+      retry.onclick = () => { $("#question").value = question; $("#advisor-form").requestSubmit(); }; answer.append(retry);
+    }
+    $("#advice-status").textContent = "Pertanyaan tetap tersedia untuk diperbaiki atau dikirim ulang.";
   } finally {
+    state.adviceController = null;
     $("#ask-button").disabled = false;
+    $("#ask-button").textContent = "Kirim pertanyaan";
+    $("#ask-button").removeAttribute("aria-busy");
+    $("#cancel-advice").hidden = true;
     answer.scrollIntoView({ block: "nearest" });
   }
 }
 nav();
 const region = read("pp_region", {});
-if (places[region.province]) $("#province").value = region.province;
-fillCities(region.city);
+if (typeof region.province === "string" && region.province.length <= 80) $("#province").value = region.province;
+fillCities(typeof region.city === "string" && region.city.length <= 80 ? region.city : undefined);
+loadRegions();
+loadCapabilities();
 history();
 feature(0);
 renderWidget();
@@ -786,9 +1074,11 @@ renderIngredients();
 updateContext();
 route();
 window.addEventListener("hashchange", route);
-$("#province").addEventListener("change", () => fillCities());
+$("#province").addEventListener("change", () => { fillCities(); loadRegions($("#province").value.trim()); });
 $("#city").addEventListener("change", () => fillCities($("#city").value));
 $("#product").addEventListener("input", () => {
+  syncCommoditySelection();
+  closeProductSuggestions();
   clearTimeout(productSuggestionTimer);
   productSuggestionTimer = setTimeout(updateProductSuggestions, 180);
 });
@@ -809,11 +1099,18 @@ $("#product-suggestions").addEventListener("click", (event) => {
   const option = event.target.closest("[data-product-option]");
   if (!option) return;
   $("#product").value = option.dataset.product;
+  $("#product").dispatchEvent(new Event("input", { bubbles: true }));
+  clearTimeout(productSuggestionTimer);
   closeProductSuggestions();
   $("#product").focus();
 });
 $("#product-suggestions").addEventListener("pointerdown", (event) => {
   if (event.target.closest("[data-product-option]")) event.preventDefault();
+});
+$("#product-suggestions").addEventListener("focusin", (event) => {
+  $$("[data-product-option]").forEach(option => {
+    option.setAttribute("aria-selected", String(option === event.target));
+  });
 });
 $("#product-suggestions").addEventListener("keydown", (event) => {
   const options = $$("#product-suggestions [data-product-option]");
@@ -837,10 +1134,13 @@ $("#product").addEventListener("blur", () => {
   }, 0);
 });
 $("#market-form").addEventListener("submit", marketSearch);
-$("#header-search").onclick = () => {
-  go("harga");
-  setTimeout(() => $("#product").focus(), 40);
-};
+$("#market-form").addEventListener("input", () => {
+  cancelSearch("Isian berubah. Tekan Cek harga untuk mencari ulang.");
+  showSearchError("");
+});
+$("#cancel-search").onclick = () => cancelSearch();
+$("#refresh-market").onclick = () => marketSearch(null, { force: true });
+window.addEventListener("pantau-theme-change", drawChart);
 $("#back-search").onclick = () => go("harga");
 $("#about-data").onclick = () => $("#data-dialog").showModal();
 $$("dialog").forEach((dialog) =>
@@ -858,12 +1158,19 @@ $$("dialog").forEach((dialog) =>
   }),
 );
 $("#recent-searches").onclick = (e) => {
+  if (e.target.closest("[data-clear-history]")) {
+    state.history = [];
+    save("pp_history", state.history);
+    history();
+    toast("Riwayat pencarian lokal dihapus.");
+    return;
+  }
   const b = e.target.closest("[data-history]");
   if (!b) return;
   const q = state.history[b.dataset.history];
-  $("#province").value = q.province;
-  fillCities(q.city);
-  $("#product").value = q.product;
+  fillCities(q.city, q.province);
+  $("#product").value = q.search_text || q.product;
+  syncCommoditySelection();
   marketSearch();
 };
 $("#feature-list").onclick = (e) => {
@@ -931,33 +1238,25 @@ $$("[data-question]").forEach(
       $("#question").focus();
     }),
 );
-PantauApi.request("/api/activity", {}, () => state.history)
-  .then((response) => {
-    const data = Array.isArray(response.data)
-      ? response.data
-      : response.data.items;
-    if (
-      Array.isArray(data) &&
-      data.every(
-        (q) =>
-          places[q.province]?.includes(q.city) && typeof q.product === "string",
-      )
-    ) {
-      const seen = new Set();
-      state.history = [...data, ...state.history]
-        .filter((item) => {
-          const key = `${item.province}\u0000${item.city}\u0000${item.product}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        })
-        .slice(0, 5);
-      save("pp_history", state.history);
-      history();
-    }
-  })
-  .catch((error) => toast(error.message));
-
 window.addEventListener("resize", () => {
   if (!$("#hasil").hidden) drawChart();
 });
+
+$("#export-prices").onclick = () => {
+ if(!state.market)return;
+ const cell=value=>'"'+String(value??"").replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';
+ const rows=[["Tanggal","Produk","Provinsi","Kota","Harga IDR","Satuan","Sumber"],...series(state.market,state.days).map(item=>[item.tanggal.slice(0,10),state.market.produk,state.market.provinsi,state.market.kota,item.harga,state.market.satuan,state.market.daftar_sumber.map(s=>s.url).join(" | ")])];
+ const url=URL.createObjectURL(new Blob(["\uFEFF"+rows.map(row=>row.map(cell).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"}));const link=document.createElement("a");link.href=url;link.download="pantaupasar-harga.csv";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+
+$("#cancel-advice").onclick = () => state.adviceController?.abort();
+
+$$("[data-commodity]").forEach(button => button.addEventListener("click", () => {
+  $("#product").value = button.dataset.commodity;
+  $("#product").dispatchEvent(new Event("input", { bubbles: true }));
+  clearTimeout(productSuggestionTimer);
+  closeProductSuggestions();
+  formHint("");
+  $("#product").focus({preventScroll:true});
+}));
+syncCommoditySelection();

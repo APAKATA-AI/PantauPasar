@@ -1,0 +1,38 @@
+{
+  "checks": [
+    {
+      "width": 390,
+      "theme": "light",
+      "views": 4,
+      "error_retry": true,
+      "dialog_keyboard": true,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "views": 4,
+      "error_retry": true,
+      "dialog_keyboard": true,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "views": 4,
+      "error_retry": true,
+      "dialog_keyboard": true,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "views": 4,
+      "error_retry": true,
+      "dialog_keyboard": true,
+      "overflow": false
+    }
+  ],
+  "errors": [],
+  "advisor_response": "mocked_for_ui_testing"
+}

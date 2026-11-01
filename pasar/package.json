@@ -8,8 +8,10 @@
   },
   "scripts": {
     "start": "node backend/server.js",
-    "dev": "nodemon backend/server.js",
+    "dev": "node --watch backend/server.js",
     "import:pihps": "node backend/scripts/import-pihps.js",
+    "verify:providers": "node backend/scripts/verify-providers.js",
+    "test:ui": "node scripts/verify-ui.cjs",
     "test": "node --test"
   },
   "dependencies": {
@@ -17,8 +19,5 @@
     "express": "^4.21.2",
     "helmet": "^8.0.0",
     "pg": "^8.13.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.14"
   }
 }

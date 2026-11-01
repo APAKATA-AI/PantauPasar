@@ -6,8 +6,11 @@ import {
 } from "../integrations/pihps-catalog.js";
 
 const asNumber = (value) => Number(value);
+const dateDay = (value) => Number.isFinite(new Date(value).getTime()) ? new Date(value).toISOString().slice(0, 10) : null;
 
 function aggregateMarket({ product, province, city, observations, regions, aiAssisted }) {
+  const rejectedCount = observations.filter((item) => !validObservation(item)).length;
+  observations = observations.filter(validObservation);
   if (!observations.length)
     throw new HttpError(
       404,
@@ -23,7 +26,9 @@ function aggregateMarket({ product, province, city, observations, regions, aiAss
       "Data harga memiliki satuan yang berbeda dan belum dapat dibandingkan.",
     );
 
-  const prices = observations.map((item) => asNumber(item.price));
+  const latestDay = observations.map((item) => new Date(item.observed_at).toISOString().slice(0, 10)).sort().at(-1);
+  const latest = observations.filter((item) => new Date(item.observed_at).toISOString().startsWith(latestDay));
+  const prices = latest.map((item) => asNumber(item.price));
   const average = prices.reduce((sum, price) => sum + price, 0) / prices.length;
   const daily = new Map();
   const sourceMap = new Map();
@@ -46,8 +51,8 @@ function aggregateMarket({ product, province, city, observations, regions, aiAss
       });
   }
 
-  const confidenceScores = observations
-    .filter((item) => item.confidence_score !== null)
+  const confidenceScores = latest
+    .filter((item) => item.confidence_score != null)
     .map((item) => Number(item.confidence_score))
     .filter(Number.isFinite);
   return {
@@ -71,17 +76,37 @@ function aggregateMarket({ product, province, city, observations, regions, aiAss
         tanggal: new Date(`${tanggal}T00:00:00.000Z`).toISOString(),
         harga: Math.round(values.reduce((sum, value) => sum + value, 0) / values.length),
       })),
-    perbandingan_wilayah: regions.map((item) => ({
+    perbandingan_wilayah: regions.filter((item) => Number.isFinite(asNumber(item.average_price)) && asNumber(item.average_price) > 0 &&
+      item.observed_at && dateDay(item.observed_at) === latestDay).map((item) => ({
       kota: item.city,
       harga: Math.round(asNumber(item.average_price)),
+      tanggal: new Date(item.observed_at).toISOString(),
+      satuan: units.values().next().value,
     })),
     daftar_sumber: [...sourceMap.values()],
     updated_at: new Date(
       Math.max(...observations.map((item) => new Date(item.observed_at).getTime())),
     ).toISOString(),
     ai_assisted: Boolean(aiAssisted),
+    market_type: "pihps",
+    price_basis: "latest_observation_date",
+    observation_count: latest.length,
+    rejected_observations: rejectedCount,
+    coverage: {
+      observed_days: daily.size,
+      comparison_available: regions.some((item) => item.observed_at && dateDay(item.observed_at) === latestDay),
+      note: "Harga utama memakai tanggal pembacaan terbaru yang tersedia. Wilayah tanpa pembacaan pada tanggal yang sama tidak dibandingkan.",
+    },
     demo: false,
   };
+}
+
+function validObservation(item) {
+  const value = Number(item?.price);
+  const date = new Date(item?.observed_at);
+  if (!Number.isFinite(value) || value <= 0 || !Number.isFinite(date.getTime()) ||
+      !item.source_name || !item.unit?.trim() || (item.currency && item.currency !== "IDR")) return false;
+  try { return new URL(item.source_url).protocol === "https:"; } catch { return false; }
 }
 
 export function createMarketService(repository, pihpsImportService, searchWebMarket) {
@@ -94,7 +119,7 @@ export function createMarketService(repository, pihpsImportService, searchWebMar
           throw new HttpError(
             502,
             "PIHPS_UNAVAILABLE",
-            `Katalog PIHPS belum dapat dicari: ${error.message}`,
+            "Katalog PIHPS belum dapat dicari. Coba lagi beberapa saat.",
           );
         }
       return matchPihpsCommodities(query).map(({ marketLabel }) => ({
@@ -102,7 +127,7 @@ export function createMarketService(repository, pihpsImportService, searchWebMar
       }));
     },
 
-    async getMarket({ product, province, city }) {
+    async getMarket({ product, province, city, refresh = false }) {
       if (pihpsImportService?.fetchProduct) {
         let result;
         try {
@@ -110,24 +135,19 @@ export function createMarketService(repository, pihpsImportService, searchWebMar
             product,
             province,
             city,
+            ...(refresh ? { refresh: true } : {}),
           });
         } catch (error) {
-          if (
-            searchWebMarket &&
-            error instanceof HttpError &&
-            error.code.startsWith("GEMINI_")
-          )
-            return searchWebMarket({ product, province, city });
           if (error instanceof HttpError) throw error;
           throw new HttpError(
             502,
             "PIHPS_UNAVAILABLE",
-            `Sumber harga PIHPS belum dapat dihubungi: ${error.message}`,
+            "Sumber harga PIHPS belum dapat dihubungi. Coba lagi beberapa saat.",
           );
         }
         if (!result.commodity) {
           if (searchWebMarket)
-            return searchWebMarket({ product, province, city });
+            return searchWebMarket({ product, province, city, ...(refresh ? { refresh: true } : {}) });
           throw new HttpError(
             404,
             "PRODUCT_NOT_FOUND",
@@ -136,7 +156,7 @@ export function createMarketService(repository, pihpsImportService, searchWebMar
         }
 
         if (!result.observations.length && searchWebMarket)
-          return searchWebMarket({ product, province, city });
+          return searchWebMarket({ product, province, city, ...(refresh ? { refresh: true } : {}) });
 
         let regions = [];
         if (repository?.findRegionalAverages)
@@ -147,7 +167,7 @@ export function createMarketService(repository, pihpsImportService, searchWebMar
               unit: result.commodity.denomination.trim(),
             });
           } catch (error) {
-            console.error("Regional comparison is unavailable:", error);
+            console.error("Regional comparison is unavailable.");
           }
         return aggregateMarket({
           product: result.commodity.name,
@@ -173,7 +193,7 @@ export function createMarketService(repository, pihpsImportService, searchWebMar
           throw new HttpError(
             502,
             "PIHPS_UNAVAILABLE",
-            `Data belum ada di database dan PIHPS belum dapat dihubungi: ${error.message}`,
+            "Data belum tersedia dan PIHPS belum dapat dihubungi. Coba lagi beberapa saat.",
           );
         }
         if (!result.commodity)

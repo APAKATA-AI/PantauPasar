@@ -26,6 +26,8 @@
   window.PP_CONFIG = Object.freeze({
     apiBaseUrl: "",
     sessionId,
-    requestTimeoutMs: 45000,
+    requestTimeoutMs: 90000,
+    marketCacheTtlMs: 24 * 60 * 60 * 1000,
+    webOfferCacheTtlMs: 15 * 60 * 1000,
   });
 })();

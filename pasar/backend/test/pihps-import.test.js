@@ -213,7 +213,7 @@ test("PIHPS fetch returns verified observations without a database repository", 
   assert.equal(result.commodity.name, "Minyak Goreng Curah");
 });
 
-test("Gemini can only resolve a commodity already present in the official catalog", async () => {
+test("Vleee can only resolve a commodity already present in the official catalog", async () => {
   const candidate = {
     id: "com_7",
     name: "Minyak Goreng Curah",
@@ -257,10 +257,12 @@ test("Gemini can only resolve a commodity already present in the official catalo
   assert.equal(result.observations[0].price, 12000);
 });
 
-test("PIHPS skips Gemini matching for unrelated product names", async () => {
+test("PIHPS skips Vleee matching for unrelated product names", async () => {
   let resolveCalls = 0;
   const service = createPihpsImportService({
     client: {
+      async getProvinces() { return [{ id: 16, name: "Jawa Timur" }]; },
+      async getCities() { return [{ id: 42, name: "Kota Surabaya" }]; },
       async getCommodityCatalog() {
         return [
           {

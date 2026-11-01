@@ -6,6 +6,7 @@ import {
   matchPihpsCommodities,
   searchPihpsCatalog,
 } from "../integrations/pihps-catalog.js";
+import { HttpError } from "../middleware/http-error.js";
 
 const normalize = (value) =>
   String(value)
@@ -67,8 +68,12 @@ function shiftDate(isoDate, days) {
 }
 
 function resolveCity(cities, name) {
+  const exact = cities.find((city) => city.name.toLocaleLowerCase("id-ID") === String(name).trim().toLocaleLowerCase("id-ID"));
+  if (exact) return exact;
   const expected = normalize(name);
   const candidates = cities.filter((city) => normalize(city.name) === expected);
+  const cityType = (value) => /^kota\s/i.test(value) ? "city" : /^(kabupaten|kab\.?)\s/i.test(value) ? "regency" : null;
+  if (cityType(name)) return candidates.find((city) => cityType(city.name) === cityType(name));
   if (candidates.length === 1) return candidates[0];
   return (
     candidates.find((city) =>
@@ -170,7 +175,8 @@ export function createPihpsImportService({
             candidates: candidateCatalog,
           })
         : null;
-    const commodity = fuzzyCommodity || aiCommodity;
+    const suggested = fuzzyCommodity || aiCommodity;
+    const commodity = suggested ? catalog.find((item) => item.id === suggested.id && item.name === suggested.name) : null;
     if (!commodity)
       return { catalog, commodity: null, aiAssisted: false };
     if (
@@ -201,8 +207,10 @@ export function createPihpsImportService({
     province,
     city,
     days,
+    location: selectedLocation,
+    refresh = false,
   }) {
-    const location = await getLocation(province, city);
+    const location = selectedLocation || await getLocation(province, city);
     if (!location) return { observations: [], commodity };
 
     const endDate = jakartaDate(clock());
@@ -213,7 +221,7 @@ export function createPihpsImportService({
       startDate,
       endDate,
     };
-    const grid = await client.getPriceGrid(gridParams);
+    const grid = await client.getPriceGrid(gridParams, { refresh });
     const row = grid.find(
       (item) => normalize(item.name) === normalize(commodity.name),
     );
@@ -222,7 +230,7 @@ export function createPihpsImportService({
     const observations = Object.entries(row).flatMap(([label, rawPrice]) => {
       const observedAt = parsePihpsDate(label);
       const price = parsePihpsPrice(rawPrice);
-      if (!observedAt || price === null) return [];
+      if (!observedAt || price === null || observedAt.slice(0, 10) < startDate || observedAt.slice(0, 10) > endDate) return [];
       return [
         {
           commodity: commodity.name,
@@ -286,13 +294,16 @@ export function createPihpsImportService({
       return importCommodity({ commodity, province, city, days });
     },
 
-    async fetchProduct({ product, province, city, days = 30 }) {
+    async fetchProduct({ product, province, city, days = 30, refresh = false }) {
       if (!Number.isInteger(days) || days < 1 || days > 90)
         throw new RangeError("Jumlah hari impor harus antara 1 dan 90.");
+      const location = await getLocation(province, city);
+      if (!location) throw new HttpError(404, "LOCATION_NOT_FOUND",
+        "Wilayah belum dikenali oleh sumber PIHPS. Periksa nama provinsi dan kota/kabupaten.");
       const { commodity, aiAssisted } = await getResolvedCommodity(product);
       if (!commodity) return { observations: [], commodity: null };
       return {
-        ...(await fetchCommodity({ commodity, province, city, days })),
+        ...(await fetchCommodity({ commodity, province, city, days, location, refresh })),
         ai_assisted: aiAssisted,
       };
     },
@@ -365,7 +376,7 @@ export function createPihpsImportService({
             for (const [label, rawPrice] of Object.entries(row)) {
               const observedAt = parsePihpsDate(label);
               const price = parsePihpsPrice(rawPrice);
-              if (!observedAt || price === null) continue;
+              if (!observedAt || price === null || observedAt.slice(0, 10) < startDate || observedAt.slice(0, 10) > endDate) continue;
               observations.push({
                 commodity: commodity.sourceName,
                 province: region.province,
